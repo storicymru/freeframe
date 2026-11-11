@@ -1,0 +1,11 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2>{{ asset_name }} has been signed off</h2>
+<p><strong>{{ signer_name }}</strong> ({{ signer_email }}) signed off version {{ version_number }} on {{ signed_at }}.</p>
+<p>It is now locked: no new versions or comments can be added unless the project owner reopens it.
+The client can download the original file from their share link.</p>
+<p>
+    <a href="{{ asset_link }}" class="button">View the sign-off</a>
+</p>
+{% endblock %}

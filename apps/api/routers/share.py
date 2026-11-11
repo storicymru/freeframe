@@ -53,6 +53,7 @@ from ..services.downloads import (
     original_allowed_for_download, pick_or_refuse,
 )
 from ..services.crypto_service import encrypt_password, decrypt_password
+from ..services.sign_off import share_download_allowed, sign_off_unlocks_download
 from .hls_proxy import create_hls_token
 from ..models.project import Project, ProjectRole
 from ..tasks.email_tasks import send_share_email
@@ -225,6 +226,7 @@ def create_share_link(
         permission=body.permission,
         visibility=body.visibility,
         allow_download=body.allow_download,
+        require_sign_off=body.require_sign_off,
         show_versions=body.show_versions,
         show_watermark=body.show_watermark,
         appearance=body.appearance.model_dump(),
@@ -360,6 +362,7 @@ def _build_share_validate_response(
         permission=link.permission,
         visibility=link.visibility,
         allow_download=link.allow_download,
+        require_sign_off=_asks_for_sign_off(link),
         show_versions=link.show_versions,
         show_watermark=link.show_watermark,
         appearance=link.appearance,
@@ -594,6 +597,7 @@ def create_folder_share_link(
         permission=body.permission,
         visibility=body.visibility,
         allow_download=body.allow_download,
+        require_sign_off=body.require_sign_off,
         show_versions=body.show_versions,
         show_watermark=body.show_watermark,
         appearance=body.appearance.model_dump(),
@@ -639,6 +643,7 @@ def create_project_share_link(
         permission=body.permission,
         visibility=body.visibility,
         allow_download=body.allow_download,
+        require_sign_off=body.require_sign_off,
         show_versions=body.show_versions,
         show_watermark=body.show_watermark,
         appearance=body.appearance.model_dump(),
@@ -1301,6 +1306,7 @@ def create_multi_share_link(
         permission=body.permission,
         visibility=body.visibility,
         allow_download=body.allow_download,
+        require_sign_off=body.require_sign_off,
         show_versions=body.show_versions,
         show_watermark=body.show_watermark,
         password_hash=password_hash,
@@ -1556,6 +1562,16 @@ def _share_media_file(db: Session, link, asset, version_id: Optional[uuid.UUID])
     return media_file
 
 
+def _asks_for_sign_off(link: ShareLink) -> bool:
+    return getattr(link, "require_sign_off", False) is True
+
+
+def _download_refusal(link: ShareLink) -> str:
+    if _asks_for_sign_off(link):
+        return "This can be downloaded once it has been signed off"
+    return "Downloads are not allowed for this share link"
+
+
 @router.get(
     "/share/{token}/downloads/{asset_id}",
     response_model=list[DownloadOption],
@@ -1573,14 +1589,20 @@ def list_share_download_options(
     """Public endpoint — optional auth. The files an asset in a share link can be
     downloaded as: the original, then each transcode."""
     link = validate_share_link_with_session(db, token, share_session=share_session, current_user=current_user)
-    if not link.allow_download:
-        raise HTTPException(status_code=403, detail="Downloads are not allowed for this share link")
+    # A link with downloads off and no sign-off to wait for is refused before
+    # anything is looked up, as it always was.
+    if not link.allow_download and not _asks_for_sign_off(link):
+        raise HTTPException(status_code=403, detail=_download_refusal(link))
     asset = _get_asset(db, asset_id)
     validate_asset_in_share(db, link, asset)
+    if not share_download_allowed(db, link, asset):
+        raise HTTPException(status_code=403, detail=_download_refusal(link))
     media_file = _share_media_file(db, link, asset, version_id)
     choices = download_choices(
         asset.asset_type, media_file,
-        allow_original=may_download_original(db, asset, current_user),
+        # A signed-off video is released as its original: that is the delivery.
+        allow_original=sign_off_unlocks_download(db, link, asset)
+        or may_download_original(db, asset, current_user),
     )
     describe_choices(asset.asset_type, media_file, choices)
     return [
@@ -1611,14 +1633,23 @@ def get_share_stream_url(
     """
     link = validate_share_link_with_session(db, token, share_session=share_session, current_user=current_user)
 
-    # Enforce allow_download when explicit download is requested
-    if download and not link.allow_download:
-        raise HTTPException(status_code=403, detail="Downloads are not allowed for this share link")
+    # A link with downloads off and no sign-off to wait for refuses a download
+    # before anything is looked up, as it always did.
+    if download and not link.allow_download and not _asks_for_sign_off(link):
+        raise HTTPException(status_code=403, detail=_download_refusal(link))
 
     asset = _get_asset(db, asset_id)
 
     # Validate asset belongs to this share
     validate_asset_in_share(db, link, asset)
+
+    # Enforce the link's download rule when an explicit download is requested.
+    # A link that asks for a sign-off opens its downloads only once it has one.
+    signed_off_release = False
+    if download:
+        if not share_download_allowed(db, link, asset):
+            raise HTTPException(status_code=403, detail=_download_refusal(link))
+        signed_off_release = sign_off_unlocks_download(db, link, asset)
 
     media_file = _share_media_file(db, link, asset, version_id)
 
@@ -1630,10 +1661,12 @@ def get_share_stream_url(
         # lets people outside the project have it.
         choice = pick_or_refuse(
             asset, media_file, rendition,
-            allow_original=original_allowed_for_download(
+            # A signed-off video is released as its original, and that is the
+            # file a download serves when none is named.
+            allow_original=signed_off_release or original_allowed_for_download(
                 db, asset, current_user, rendition, prefer_original,
             ),
-            prefer_original=prefer_original,
+            prefer_original=prefer_original or signed_off_release,
         )
         url = generate_presigned_get_url(
             choice.s3_key, download_filename=download_filename(asset, media_file, choice),

@@ -29,6 +29,7 @@ class ShareLinkCreate(BaseModel):
     expires_at: Optional[datetime] = None
     password: Optional[str] = None
     allow_download: bool = False
+    require_sign_off: bool = False
     title: Optional[str] = None
     description: Optional[str] = None
     show_versions: bool = True
@@ -46,6 +47,7 @@ class MultiShareCreate(BaseModel):
     expires_at: Optional[datetime] = None
     password: Optional[str] = None
     allow_download: bool = False
+    require_sign_off: bool = False
     show_versions: bool = True
     show_watermark: bool = False
     appearance: ShareLinkAppearance = ShareLinkAppearance()
@@ -63,6 +65,7 @@ class ShareLinkResponse(BaseModel):
     permission: SharePermission
     visibility: str = "public"
     allow_download: bool
+    require_sign_off: bool = False
     show_versions: bool
     show_watermark: bool
     appearance: dict
@@ -91,6 +94,7 @@ class ShareLinkValidateResponse(BaseModel):
     description: Optional[str] = None
     permission: SharePermission = SharePermission.view
     allow_download: bool = False
+    require_sign_off: bool = False
     show_versions: bool = True
     show_watermark: bool = False
     appearance: Optional[dict] = None
@@ -130,6 +134,7 @@ class ShareLinkUpdate(BaseModel):
     password: Optional[str] = None
     expires_at: Optional[datetime] = None
     allow_download: Optional[bool] = None
+    require_sign_off: Optional[bool] = None
 
 
 class ShareLinkListItem(BaseModel):

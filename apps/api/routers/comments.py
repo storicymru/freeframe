@@ -47,6 +47,7 @@ from ..schemas.comment import (
 )
 from ..services import s3_service
 from ..services import comment_export
+from ..services.sign_off import ensure_not_signed_off
 from ..services.permissions import (
     require_asset_access, can_access_asset, validate_share_link_with_session, validate_asset_in_share,
     require_asset_project_live,
@@ -483,6 +484,7 @@ def create_comment(
 ):
     asset = _get_asset(db, asset_id)
     require_asset_access(db, asset, current_user)
+    ensure_not_signed_off(db, asset.id)
 
     version = db.query(AssetVersion).filter(
         AssetVersion.id == body.version_id, AssetVersion.asset_id == asset_id,
@@ -565,6 +567,7 @@ def reply_to_comment(
 ):
     asset = _get_asset(db, asset_id)
     require_asset_access(db, asset, current_user)
+    ensure_not_signed_off(db, asset.id)
     parent = db.query(Comment).filter(
         Comment.id == comment_id, Comment.asset_id == asset_id, Comment.deleted_at.is_(None),
     ).first()
@@ -1142,6 +1145,8 @@ def guest_comment(
         raise HTTPException(status_code=400, detail="asset_id is required for folder/project shares")
     asset = _get_asset(db, target_asset_id)
     validate_asset_in_share(db, link, asset)
+    # Signed off means the review is closed: no more notes on what was approved.
+    ensure_not_signed_off(db, asset.id)
 
     # A reply must answer a comment a guest on this link can actually see: a live,
     # non-internal comment on the asset the link resolved to (`asset.id`, never

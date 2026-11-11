@@ -37,6 +37,7 @@ from ..schemas.upload import (
 )
 from ..services.storage import choose_part_size, upload_guard_error
 from ..services.versions import next_version_number
+from ..services.sign_off import ensure_not_signed_off
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,9 @@ def initiate_upload(
             raise HTTPException(status_code=404, detail="Asset not found")
         if asset.project_id != body.project_id:
             raise HTTPException(status_code=400, detail="Asset does not belong to the specified project")
+        # A new version of a video the client has signed off would change what
+        # they approved. The project owner reopens it first.
+        ensure_not_signed_off(db, asset.id)
     else:
         # Validate the target folder for a new asset: it must exist, belong to this project, and not
         # be soft-deleted -- otherwise a live asset could be placed under a trashed folder and later

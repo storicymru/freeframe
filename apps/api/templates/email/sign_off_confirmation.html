@@ -1,0 +1,19 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2>Thank you, {{ signer_name }}</h2>
+<p>You have signed off <strong>{{ asset_name }}</strong> (version {{ version_number }}).</p>
+<p><strong>You agreed:</strong></p>
+<div class="quote">{{ statement }}</div>
+<p class="muted">Signed on {{ signed_at }}.</p>
+<p>The final file is now ready for you to download.</p>
+<p style="text-align: center; margin: 24px 0;">
+    <a href="{{ share_url }}" class="button" style="padding: 14px 32px; font-size: 16px;">Download the final file</a>
+</p>
+<div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #eee;">
+    <p class="muted" style="font-size: 13px; color: #888;">
+        Please keep this email as your record of the sign-off. If you did not sign this off,
+        reply to this email straight away.
+    </p>
+</div>
+{% endblock %}

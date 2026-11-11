@@ -292,3 +292,77 @@ def send_project_added_email(
         return {"status": "sent", "to": to_email}
     except Exception as exc:
         self.retry(exc=exc)
+
+
+@shared_task(bind=True, queue="email_high", max_retries=3, default_retry_delay=30)
+def send_sign_off_confirmation_email(
+    self,
+    to_email: str,
+    signer_name: str,
+    asset_name: str,
+    version_number: int,
+    statement: str,
+    signed_at: str,
+    share_url: str,
+):
+    """Send the client their copy of a sign-off, with the link the download is on."""
+    try:
+        subject = f"You signed off {asset_name}"
+        html_body = render_template(
+            "email/sign_off_confirmation.html",
+            subject=subject,
+            signer_name=signer_name,
+            asset_name=asset_name,
+            version_number=version_number,
+            statement=statement,
+            signed_at=signed_at,
+            share_url=share_url,
+        )
+        text_body = (
+            f"Thank you, {signer_name}. You signed off version {version_number} of {asset_name} "
+            f"on {signed_at}.\n\nYou agreed: {statement}\n\nDownload the final file: {share_url}"
+        )
+
+        success = _send_email(to_email, subject, html_body, text_body)
+        if not success:
+            raise Exception("Email sending failed")
+        return {"status": "sent", "to": to_email}
+    except Exception as exc:
+        self.retry(exc=exc)
+
+
+@shared_task(bind=True, queue="email_low", max_retries=3, default_retry_delay=120)
+def send_sign_off_team_email(
+    self,
+    to_email: str,
+    signer_name: str,
+    signer_email: str,
+    asset_name: str,
+    version_number: int,
+    signed_at: str,
+    asset_link: str,
+):
+    """Tell the team a client has signed a video off."""
+    try:
+        subject = f"\u2705 {asset_name} has been signed off by {signer_name}"
+        html_body = render_template(
+            "email/sign_off_team.html",
+            subject=subject,
+            signer_name=signer_name,
+            signer_email=signer_email,
+            asset_name=asset_name,
+            version_number=version_number,
+            signed_at=signed_at,
+            asset_link=asset_link,
+        )
+        text_body = (
+            f"{signer_name} ({signer_email}) signed off version {version_number} of {asset_name} "
+            f"on {signed_at}. It is now locked.\n\nView: {asset_link}"
+        )
+
+        success = _send_email(to_email, subject, html_body, text_body)
+        if not success:
+            raise Exception("Email sending failed")
+        return {"status": "sent", "to": to_email}
+    except Exception as exc:
+        self.retry(exc=exc)

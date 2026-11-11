@@ -36,6 +36,8 @@ class ShareLink(Base):
     permission: Mapped[SharePermission] = mapped_column(Enum(SharePermission), default=SharePermission.view)
     visibility: Mapped[str] = mapped_column(String(20), nullable=False, server_default="public")
     allow_download: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Ask the client to sign the video off; its downloads open once they have.
+    require_sign_off: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     show_versions: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     show_watermark: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     appearance: Mapped[dict] = mapped_column(JSON, nullable=False, server_default='{"layout":"grid","theme":"dark","accent_color":null,"open_in_viewer":true,"sort_by":"created_at"}')
