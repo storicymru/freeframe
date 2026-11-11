@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Client sign-off on a share link.** A share link has a new switch, **Require sign-off**. With it on, the client sees a **Sign off** button on the video: they give their full name and email and tick a statement naming the version ("I approve version 3 of “Hero Spot” as final and confirm that no further changes are required"). Signing records who agreed to what, which version, when and from which address; locks the asset, so no new version can be uploaded and no comment added from the project or the link; opens that link's downloads with the original file as the delivery, whatever the instance's setting for originals outside a project; and emails the client a confirmation with the link, and the people who shared and made the asset a notice. Until it is signed off, a link that requires a sign-off hands out no download at all, even with its own download switch on. The project's owner (or an instance admin) can **Reopen** a signed-off asset from its review page, with an optional reason; that unlocks it and closes the download again, and the sign-off stays on record. The record has no foreign keys, so it survives the asset being deleted. A name and email are taken as typed: the record shows that someone holding the link approved the version, not a verified identity. Off for every existing link, so nothing changes until someone turns it on. Needs the migration in this release (`alembic upgrade head`, which the API container runs on start).
+
 ## [1.22.0] - 2026-10-29
 
 ### Upgrade notes

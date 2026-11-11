@@ -19,6 +19,7 @@ import {
   ChevronDown,
   MessageSquare,
   Download,
+  PenLine,
   Key,
   Clock,
   Droplets,
@@ -298,6 +299,7 @@ interface ShareConfig {
   title: string
   allowComments: boolean
   allowDownloads: boolean
+  requireSignOff: boolean
   passphrase: string | null
   expiresAt: string | null
   watermark: boolean
@@ -327,6 +329,7 @@ function ConfigurePhase({ defaultTitle, onBack, onCreate, creating, createdUrl, 
   // one made in the dialog does not. (#266)
   const [allowComments, setAllowComments] = React.useState(true)
   const [allowDownloads, setAllowDownloads] = React.useState(false)
+  const [requireSignOff, setRequireSignOff] = React.useState(false)
   const [passphrase, setPassphrase] = React.useState(false)
   const [passphraseValue, setPassphraseValue] = React.useState('')
   const [showPassphraseInput, setShowPassphraseInput] = React.useState(false)
@@ -346,6 +349,7 @@ function ConfigurePhase({ defaultTitle, onBack, onCreate, creating, createdUrl, 
       title: title.trim() || defaultTitle,
       allowComments,
       allowDownloads,
+      requireSignOff,
       passphrase: passphrase && passphraseValue ? passphraseValue : null,
       expiresAt: expiresAt || null,
       watermark,
@@ -434,6 +438,25 @@ function ConfigurePhase({ defaultTitle, onBack, onCreate, creating, createdUrl, 
               checked={allowDownloads}
               onCheckedChange={setAllowDownloads}
               className="w-9 h-5 rounded-full relative bg-bg-tertiary border border-border data-[state=checked]:bg-accent transition-colors"
+            >
+              <Switch.Thumb className="block w-4 h-4 rounded-full bg-white shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+            </Switch.Root>
+          </div>
+
+          {/* Client sign-off */}
+          <div className="flex items-center justify-between py-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <PenLine className="h-4 w-4 text-text-tertiary shrink-0" />
+              <div className="min-w-0">
+                <span className="block text-sm text-text-primary">Require sign-off</span>
+                <span className="block text-xs text-text-tertiary">The client signs it off, then can download the original</span>
+              </div>
+            </div>
+            <Switch.Root
+              aria-label="Require sign-off"
+              checked={requireSignOff}
+              onCheckedChange={setRequireSignOff}
+              className="w-9 h-5 rounded-full relative bg-bg-tertiary border border-border data-[state=checked]:bg-accent transition-colors shrink-0"
             >
               <Switch.Thumb className="block w-4 h-4 rounded-full bg-white shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
             </Switch.Root>
@@ -716,6 +739,7 @@ function LinkCreatedPhase({ result, allResults, onSelectResult, onDone, onAdvanc
   // Same defaults as the single-item path above. (#266)
   const [allowComments, setAllowComments] = React.useState(true)
   const [allowDownloads, setAllowDownloads] = React.useState(false)
+  const [requireSignOff, setRequireSignOff] = React.useState(false)
   const [passphrase, setPassphrase] = React.useState(false)
   const [passphraseValue, setPassphraseValue] = React.useState('')
   const [showPassphraseInput, setShowPassphraseInput] = React.useState(false)
@@ -749,6 +773,7 @@ function LinkCreatedPhase({ result, allResults, onSelectResult, onDone, onAdvanc
       if (cancelled) return
       setAllowComments(data.permission === 'comment' || data.permission === 'approve')
       setAllowDownloads(data.allow_download)
+      setRequireSignOff(!!data.require_sign_off)
       setPassphrase(data.has_password ?? false)
       setWatermark(data.show_watermark)
       setExpiresAt(dateInputValue(data.expires_at))
@@ -802,6 +827,7 @@ function LinkCreatedPhase({ result, allResults, onSelectResult, onDone, onAdvanc
   const settingsSummary = [
     'view',
     allowDownloads ? 'download' : null,
+    requireSignOff ? 'sign-off' : null,
     allowComments ? 'comment' : null,
   ].filter(Boolean)
 
@@ -1007,6 +1033,25 @@ function LinkCreatedPhase({ result, allResults, onSelectResult, onDone, onAdvanc
                   checked={allowDownloads}
                   onCheckedChange={(v) => { setAllowDownloads(v); patchLink({ allow_download: v }) }}
                   className="w-9 h-5 rounded-full relative bg-bg-tertiary border border-border data-[state=checked]:bg-accent transition-colors"
+                >
+                  <Switch.Thumb className="block w-4 h-4 rounded-full bg-white shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+                </Switch.Root>
+              </div>
+
+              {/* Client sign-off */}
+              <div className="flex items-center justify-between py-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <PenLine className="h-4 w-4 text-text-tertiary shrink-0" />
+                  <div className="min-w-0">
+                    <span className="block text-sm text-text-primary">Require sign-off</span>
+                    <span className="block text-xs text-text-tertiary">The client signs it off, then can download the original</span>
+                  </div>
+                </div>
+                <Switch.Root
+                  aria-label="Require sign-off"
+                  checked={requireSignOff}
+                  onCheckedChange={(v) => { setRequireSignOff(v); patchLink({ require_sign_off: v }) }}
+                  className="w-9 h-5 rounded-full relative bg-bg-tertiary border border-border data-[state=checked]:bg-accent transition-colors shrink-0"
                 >
                   <Switch.Thumb className="block w-4 h-4 rounded-full bg-white shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
                 </Switch.Root>
@@ -1246,6 +1291,7 @@ export function ShareCreateDialog({
         permission: config.allowComments ? 'comment' : 'view',
         visibility: config.visibility,
         allow_download: config.allowDownloads,
+        require_sign_off: config.requireSignOff,
         show_watermark: config.watermark,
         appearance: config.appearance,
       }

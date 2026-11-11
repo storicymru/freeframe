@@ -22,6 +22,7 @@ import type { SharePermission } from '@/types'
 import { fetchShareDownloadOptions, handleDownload } from './share-download'
 import { DownloadMenu } from '@/components/shared/download-menu'
 import { ShareBrandMark } from './share-brand-mark'
+import { SignOffControl, SignOffDialog, SignedOffNotice, submitShareSignOff, useShareSignOff } from './share-sign-off'
 
 /** Signed in, or a guest who has already given a name and email. */
 function hasIdentity(): boolean {
@@ -172,7 +173,16 @@ function ShareReviewInner({
     })
   }, [])
 
-  const canComment = permission === 'comment' || permission === 'approve'
+  // Client sign-off. A link that asks for one withholds the download until the
+  // asset is signed off, and a signed-off asset takes no more comments; the
+  // server enforces both, this only mirrors them.
+  const { status: signOff, setStatus: setSignOff } = useShareSignOff(
+    token, asset?.id, shareSession, showVersions ? currentVersion?.id : undefined,
+  )
+  const [showSignOff, setShowSignOff] = React.useState(false)
+  const signedOff = !!signOff?.signed_off
+  const canDownload = signOff?.required ? signedOff : allowDownload
+  const canComment = (permission === 'comment' || permission === 'approve') && !signedOff
   const versionReady = currentVersion?.processing_status === 'ready'
 
   // Guest identity flow for non-authenticated users
@@ -311,7 +321,8 @@ function ShareReviewInner({
           {showVersions && VersionSwitcher && versions.length > 0 && (
             <VersionSwitcher versions={versions} />
           )}
-          {allowDownload && (
+          <SignOffControl status={signOff} onOpen={() => setShowSignOff(true)} />
+          {canDownload && (
             <DownloadMenu
               load={() => fetchShareDownloadOptions(token, asset.id, shareSession)}
               onPick={(rendition) => handleDownload(token, asset.id, shareSession, rendition)}
@@ -384,6 +395,7 @@ function ShareReviewInner({
               <>
                 {commentPanelNode}
                 {commentInputNode}
+                {signedOff && signOff && <SignedOffNotice status={signOff} />}
               </>
             )}
           </div>
@@ -404,11 +416,30 @@ function ShareReviewInner({
               : ''
           }
           lockedToCompose={isDrawingMode}
-          composer={activeTab === 'comments' ? commentInputNode : undefined}
+          composer={activeTab === 'comments' ? (signedOff && signOff ? <SignedOffNotice status={signOff} /> : commentInputNode) : undefined}
         >
           {panelTabs}
           {activeTab === 'comments' ? commentPanelNode : null}
         </MobileCommentSheet>
+      )}
+
+      {showSignOff && signOff && !signedOff && (
+        <SignOffDialog
+          assetName={assetName}
+          status={signOff}
+          defaultName={guestIdentity?.name}
+          defaultEmail={guestIdentity?.email}
+          onCancel={() => setShowSignOff(false)}
+          onSubmit={async (name, email) => {
+            const next = await submitShareSignOff(
+              token, asset.id,
+              { name, email, agree: true, ...(showVersions && currentVersion?.id ? { version_id: currentVersion.id } : {}) },
+              shareSession,
+            )
+            setSignOff(next)
+            setShowSignOff(false)
+          }}
+        />
       )}
 
       {/* Guest identity prompt */}

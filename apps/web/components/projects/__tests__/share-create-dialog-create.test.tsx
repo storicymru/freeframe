@@ -91,6 +91,7 @@ describe('ShareCreateDialog creating a link', () => {
         permission: 'comment',
         visibility: 'public',
         allow_download: false,
+        require_sign_off: false,
         show_watermark: false,
         password: 's3cret',
         expires_at: NY_END_OF_OCT_20,

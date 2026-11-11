@@ -1024,6 +1024,14 @@ export function ShareLinkSettingsPanel({ token }: ShareLinkSettingsPanelProps) {
                 }
               />
               <ToggleRow
+                label="Require sign-off"
+                description="The client signs it off, then can download the original"
+                checked={!!shareLink.require_sign_off}
+                onCheckedChange={(checked) =>
+                  immediateUpdate({ require_sign_off: checked })
+                }
+              />
+              <ToggleRow
                 label="Show all versions"
                 description="Display version history"
                 checked={shareLink.show_versions}

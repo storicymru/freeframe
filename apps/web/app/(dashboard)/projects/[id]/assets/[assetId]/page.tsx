@@ -20,6 +20,7 @@ import { ShareDialog } from '@/components/review/share-dialog'
 import { CompareOverlay } from '@/components/review/compare/compare-overlay'
 import { useReviewStore } from '@/stores/review-store'
 import { useAuthStore } from '@/stores/auth-store'
+import { SignOffBadge, SignedOffLockNotice, useAssetSignOff } from '@/components/review/sign-off-status'
 import { useComments } from '@/hooks/use-comments'
 import { useSSE } from '@/hooks/use-sse'
 import { api } from '@/lib/api'
@@ -176,7 +177,12 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
   )
   const currentMember = members?.find((m) => m.user_id === user?.id)
   const currentRole = currentMember?.role ?? 'viewer'
-  const canComment = currentRole !== 'viewer'
+  // A client sign-off locks the asset: the server refuses new versions and
+  // comments, so the controls for them step aside and say why.
+  const { signOff, mutate: mutateSignOff } = useAssetSignOff(asset?.id)
+  const signedOff = !!signOff?.signed_off
+  const canReopen = currentRole === 'owner' || !!user?.is_superadmin
+  const canComment = currentRole !== 'viewer' && !signedOff
   // delete_comment lets a project owner remove anyone's comment.
   const canModerate = currentRole === 'owner'
 
@@ -512,6 +518,8 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
       onSubmit={handleSubmitComment}
       annotationData={annotationData}
     />
+  ) : signOff?.current ? (
+    <SignedOffLockNotice record={signOff.current} />
   ) : null
 
   const fieldsBody = (
@@ -681,6 +689,12 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
               Compare
             </button>
           )}
+          <SignOffBadge
+            state={signOff}
+            canReopen={canReopen}
+            onReopened={(next) => { mutateSignOff(next, { revalidate: false }) }}
+          />
+          {!signedOff && (
           <button
             onClick={() => versionFileInputRef.current?.click()}
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 h-8 text-xs font-medium border border-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
@@ -689,6 +703,7 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
             <Upload className="h-3.5 w-3.5" />
             New Version
           </button>
+          )}
           <ShareDialog assetId={asset.id} assetName={asset.name} projectId={projectId} asset={asset} />
           <button
             // When the sheet is the comment surface, this button drives the

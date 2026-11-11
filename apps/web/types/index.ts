@@ -292,6 +292,8 @@ export interface ShareLink {
   expires_at: string | null;
   permission: SharePermission;
   allow_download: boolean;
+  /** The client must sign the video off; its downloads open once they have. */
+  require_sign_off?: boolean;
   is_enabled: boolean;
   visibility: "public" | "secure";
   show_versions: boolean;
