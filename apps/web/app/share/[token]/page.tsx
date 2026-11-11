@@ -33,6 +33,7 @@ interface ShareValidateResponse {
   description?: string | null
   permission?: SharePermission
   allow_download?: boolean
+  require_sign_off?: boolean
   show_versions?: boolean
   show_watermark?: boolean
   appearance?: ShareLinkAppearance | null
@@ -347,7 +348,7 @@ export default function SharePage({
           viewerAvatarUrl: data.viewer_avatar_url ?? null,
           viewerAvatarColor: data.viewer_avatar_color ?? null,
           permission: data.permission,
-          allowDownload: data.allow_download ?? false,
+          allowDownload: (data.allow_download ?? false) && !data.require_sign_off,
           showVersions: data.show_versions ?? true,
           appearance: { ...defaultAppearance, ...(data.appearance ?? {}) },
           branding: data.branding ?? null,
@@ -363,7 +364,7 @@ export default function SharePage({
         stage: 'ready',
         asset: data.asset,
         permission: data.permission,
-        allowDownload: data.allow_download ?? false,
+        allowDownload: (data.allow_download ?? false) && !data.require_sign_off,
         showVersions: data.show_versions ?? true,
         appearance: data.appearance ?? null,
         branding: data.branding ?? null,
