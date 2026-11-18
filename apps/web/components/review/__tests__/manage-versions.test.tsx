@@ -93,12 +93,15 @@ describe('the versions dialog', () => {
 
   it('offers only other videos of the same kind to stack, and stacks after asking', async () => {
     const dialog = await open()
-    const select = within(dialog).getByLabelText('Video to stack')
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Choose a video…', 'Episode 3 FINAL'])
+    const picker = within(dialog).getByRole('combobox', { name: 'Video to stack' })
+    expect(picker).toHaveTextContent('Choose a video…')
     expect(within(dialog).getByRole('button', { name: 'Stack' })).toBeDisabled()
+    fireEvent.click(picker)
+    // The same kind only: the image in the project is not offered, nor is this video.
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Episode 3 FINAL'])
 
     api.post.mockResolvedValue({ moved_versions: 1, version_numbers: [4] })
-    fireEvent.change(select, { target: { value: 'a2' } })
+    fireEvent.click(screen.getByRole('option', { name: 'Episode 3 FINAL' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Stack' }))
     fireEvent.click(within(dialog).getByRole('button', { name: /Stack “Episode 3 FINAL”/ }))
 
@@ -109,7 +112,8 @@ describe('the versions dialog', () => {
   it("shows the server's reason when it refuses, and changes nothing", async () => {
     const dialog = await open()
     api.post.mockRejectedValue(new Error('“Episode 3” has been signed off. Reopen the sign-off before changing its versions.'))
-    fireEvent.change(within(dialog).getByLabelText('Video to stack'), { target: { value: 'a2' } })
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Video to stack' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Episode 3 FINAL' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Stack' }))
     fireEvent.click(within(dialog).getByRole('button', { name: /Stack “Episode 3 FINAL”/ }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(/has been signed off/)

@@ -14,6 +14,7 @@ import * as React from 'react'
 import { Layers, Loader2, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, formatBytes, formatRelativeTime } from '@/lib/utils'
+import { SelectMenu } from '@/components/ui/select-menu'
 import type { Asset } from '@/types'
 
 export interface TidyPlanVersion {
@@ -290,13 +291,17 @@ export function ManageVersionsDialog({
               <p className="mt-2 text-xs text-text-tertiary">There is no other video in this project to stack.</p>
             ) : (
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <label htmlFor="stack-source" className="sr-only">Video to stack</label>
-                <select id="stack-source" value={sourceId} disabled={busy}
-                  onChange={(e) => { setSourceId(e.target.value); setPending(null) }}
-                  className="h-8 min-w-0 flex-1 rounded-md border border-border bg-bg-secondary px-2 text-xs text-text-primary focus:outline-none focus:border-accent">
-                  <option value="">Choose a video…</option>
-                  {others.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <SelectMenu
+                  label="Video to stack"
+                  placeholder="Choose a video…"
+                  value={sourceId}
+                  onChange={(next) => { setSourceId(next); setPending(null) }}
+                  options={others.map((a) => ({ value: a.id, label: a.name }))}
+                  disabled={busy}
+                  searchable={others.length > 6}
+                  size="sm"
+                  className="min-w-0 flex-1 bg-bg-secondary"
+                />
                 {pending?.kind === 'stack' && source ? (
                   <>
                     <button type="button" disabled={busy} onClick={() => setPending(null)} className={cn(small, 'text-text-tertiary hover:text-text-primary')}>Cancel</button>

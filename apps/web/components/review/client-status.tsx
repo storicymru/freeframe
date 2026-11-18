@@ -11,14 +11,15 @@
 import * as React from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { SelectMenu, type SelectMenuOption } from '@/components/ui/select-menu'
 import type { AssetStatus } from '@/types'
 
-const OPTIONS: { value: AssetStatus; label: string }[] = [
-  { value: 'draft', label: 'Hidden from client' },
-  { value: 'in_review', label: 'For review' },
-  { value: 'rejected', label: 'Changes requested' },
-  { value: 'approved', label: 'Delivered' },
-  { value: 'archived', label: 'Archived' },
+const OPTIONS: SelectMenuOption<AssetStatus>[] = [
+  { value: 'draft', label: 'Hidden from client', detail: 'Not in their portal' },
+  { value: 'in_review', label: 'For review', detail: 'In their review list, and they are emailed' },
+  { value: 'rejected', label: 'Changes requested', detail: 'Still in their review list' },
+  { value: 'approved', label: 'Delivered', detail: 'Download released' },
+  { value: 'archived', label: 'Archived', detail: 'Filed under their archive' },
 ]
 
 export function ClientStatusSelect({
@@ -54,21 +55,20 @@ export function ClientStatusSelect({
 
   const hidden = value === 'draft'
   return (
-    <label
-      className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 h-8 text-xs text-text-secondary"
-      title={error ?? (disabled ? disabledReason : 'What the client sees in their portal')}
-    >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      <span className="sr-only">Client portal status</span>
-      <select
+    <>
+      <SelectMenu<AssetStatus>
+        label="Client portal status"
         value={value}
+        onChange={change}
+        options={OPTIONS}
         disabled={disabled || busy}
-        onChange={(e) => change(e.target.value as AssetStatus)}
-        className="bg-transparent text-xs font-medium text-text-primary focus:outline-none disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-      >
-        {OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+        size="sm"
+        variant="quiet"
+        align="end"
+        title={error ?? (disabled ? disabledReason : 'What the client sees in their portal')}
+        icon={busy ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : hidden ? <EyeOff className="h-3.5 w-3.5 shrink-0" /> : <Eye className="h-3.5 w-3.5 shrink-0" />}
+      />
       {error && <span role="alert" className="sr-only">{error}</span>}
-    </label>
+    </>
   )
 }
