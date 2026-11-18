@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .config import settings
-from .routers import auth, users, projects, upload, events, assets, me, comments, approvals, sign_off, portal, device_auth, share, metadata, branding, instance_branding, notifications, admin, setup, folders, hls_proxy, instance_settings
+from .routers import auth, users, projects, upload, events, assets, me, comments, approvals, sign_off, portal, device_auth, version_stack, share, metadata, branding, instance_branding, notifications, admin, setup, folders, hls_proxy, instance_settings
 from .services.s3_service import run_startup_bucket_setup
 from .services.email_service import mail_is_configured
 from .middleware.global_rate_limit import GlobalRateLimitMiddleware
@@ -154,6 +154,7 @@ app.include_router(approvals.router)
 app.include_router(sign_off.router)
 app.include_router(portal.router)
 app.include_router(device_auth.router)
+app.include_router(version_stack.router)
 app.include_router(share.router)
 app.include_router(metadata.router)
 app.include_router(branding.router)

@@ -16,6 +16,7 @@ import { useBranding } from '@/components/shared/branding-provider'
 import { ProjectGeneralTab } from '@/components/projects/settings/general-tab'
 import { ProjectPeopleTab } from '@/components/projects/settings/people-tab'
 import { ProjectDangerTab } from '@/components/projects/settings/danger-tab'
+import { ProjectTidyVersions } from '@/components/projects/settings/tidy-versions'
 import { ProjectClientsTab } from '@/components/projects/settings/clients-tab'
 import type { Project, ProjectMember } from '@/types'
 
@@ -150,7 +151,10 @@ export default function ProjectSettingsPage() {
           <ProjectClientsTab projectId={projectId} />
         </Tabs.Content>
         <Tabs.Content value="danger" className={cn('pt-6', clearBadge)}>
-          <ProjectDangerTab projectId={projectId} projectName={project.name} />
+          <div className="space-y-6">
+            <ProjectTidyVersions projectId={projectId} />
+            <ProjectDangerTab projectId={projectId} projectName={project.name} />
+          </div>
         </Tabs.Content>
       </Tabs.Root>
     )

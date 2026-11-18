@@ -16,6 +16,7 @@ import { CommentPanel } from '@/components/review/comment-panel'
 import { CommentInput } from '@/components/review/comment-input'
 // ApprovalBar removed for now
 import { VersionSwitcher } from '@/components/review/version-switcher'
+import { ManageVersionsButton } from '@/components/review/manage-versions'
 import { ShareDialog } from '@/components/review/share-dialog'
 import { CompareOverlay } from '@/components/review/compare/compare-overlay'
 import { useReviewStore } from '@/stores/review-store'
@@ -61,6 +62,7 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
   const searchParams = useSearchParams()
   const { asset, versions, isLoading, refetchComments, refetchVersions, togglePlayback } = useReview()
   const { currentVersion, isDrawingMode, focusedCommentId, playheadTime, seekTo, setFocusedCommentId, setActiveAnnotation } = useReviewStore()
+  const setCurrentVersion = useReviewStore((s) => s.setCurrentVersion)
   const { user } = useAuthStore()
   const startVersionUpload = useUploadStore((s) => s.startVersionUpload)
   const toast = useToast()
@@ -178,6 +180,8 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
   )
   const currentMember = members?.find((m) => m.user_id === user?.id)
   const currentRole = currentMember?.role ?? 'viewer'
+  // Removing or restructuring versions is the owner's call (or an admin's).
+  const canManageVersions = currentRole === 'owner' || user?.is_superadmin === true
   // A client sign-off locks the asset: the server refuses new versions and
   // comments, so the controls for them step aside and say why.
   const { signOff, mutate: mutateSignOff } = useAssetSignOff(asset?.id)
@@ -244,6 +248,15 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
     lastVersionsRevision.current = versionsRevision
     refetchVersions()
   }, [versionsRevision, refetchVersions])
+
+  // The version on screen can leave the stack: deleted, tidied away, or
+  // released as its own video. Show the newest one that still plays.
+  useEffect(() => {
+    if (!currentVersion || versions.length === 0) return
+    if (versions.some((v) => v.id === currentVersion.id)) return
+    const byNewest = [...versions].sort((a, b) => b.version_number - a.version_number)
+    setCurrentVersion(byNewest.find((v) => v.processing_status === 'ready') ?? byNewest[0])
+  }, [versions, currentVersion, setCurrentVersion])
 
   // A New Version file waits for its turn behind the other uploads. Until its
   // initiate has answered there is no version to show, so the page says what
@@ -671,6 +684,15 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
             }}
           />
           <VersionSwitcher versions={versions} />
+          {asset && canManageVersions && (
+            <ManageVersionsButton
+              assetId={asset.id}
+              projectId={projectId}
+              assetType={asset.asset_type}
+              onChanged={() => { void refetchVersions() }}
+              onReleased={(newAssetId) => router.push(`/projects/${projectId}/assets/${newAssetId}`)}
+            />
+          )}
           {asset && canCompare(asset.asset_type, versions) && (
             <button
               onClick={() => {
