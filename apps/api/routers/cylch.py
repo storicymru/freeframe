@@ -16,6 +16,22 @@ comments or people, and it cannot delete anything but a logo it replaces.
 The key is sent as `Authorization: Bearer adb_cylch_...`. It is not a session
 token: `get_current_user` never sees it, so no other route can be reached
 with it.
+
+Cylch is also where the team is kept. There is one list of staff, Cylch's, and
+this app follows it:
+
+  * `PUT /people` is that list. Everyone on it has an account here with the
+    organisation role Cylch gives them; anyone who held an organisation role
+    here and is no longer on it is deactivated at once, which ends their
+    sessions. That is what happens when someone leaves.
+  * `POST /sign-in` lets a person who is signed in to Cylch into this app: it
+    answers with a one-time address, good for a minute, that their browser
+    opens. Nobody on the team needs a second password.
+
+Both make the key as strong as an administrator's sign-in, which is the point of
+Cylch being the one place the team is managed: whoever holds the key decides
+who is on the team. Client accounts are outside all of this. They are never
+created, changed, signed in or deactivated by Cylch; clients sign in here.
 """
 import hashlib
 import hmac
@@ -26,21 +42,30 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func
 from sqlalchemy.orm import Session
+from urllib.parse import quote
 
 from ..database import get_db
 from ..middleware.rate_limit import rate_limit
 from ..models.instance_settings import InstanceSettings
 from ..models.project import Project, ProjectMember, ProjectRole, ProjectType
-from ..models.user import User, UserStatus
+from ..models.user import OrgRole, User, UserStatus
 from ..routers.branding import _get_or_create_branding
 from ..routers.instance_settings import get_or_create_instance_settings
 from ..routers.users import require_admin
 from ..schemas.branding import _validate_hex_color
 from ..services import s3_service
 from ..services.owned_keys import is_project_logo_key, project_logo_prefix
+from ..config import settings
+from ..schemas.auth import TokenResponse
+from ..services.auth_service import create_access_token, create_refresh_token, get_user_by_id
+from ..services.redis_service import store_cylch_ticket, take_cylch_ticket
 
 router = APIRouter(prefix="/integrations/cylch", tags=["cylch"])
+# What a browser needs for "Sign in with Cylch". No key and no session: the
+# one-time ticket is the credential.
+auth_router = APIRouter(prefix="/auth/cylch", tags=["cylch"])
 
 KEY_PREFIX = "adb_cylch_"
 MAX_LOGO_BYTES = 2 * 1024 * 1024
@@ -257,3 +282,198 @@ async def set_logo(project_id: uuid.UUID, request: Request, db: Session = Depend
         except Exception:
             pass
     return _state(branding)
+
+
+# ── The team: Cylch's list, and signing in with it ───────────────────────────
+
+class CylchPerson(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    name: str = Field(min_length=1, max_length=255)
+    org_role: OrgRole
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def tidy_email(cls, v):
+        v = str(v or "").strip().lower()
+        if "@" not in v or " " in v:
+            raise ValueError("Not an email address")
+        return v
+
+
+class CylchPeople(BaseModel):
+    people: list[CylchPerson] = Field(max_length=500)
+
+
+class CylchPeopleResult(BaseModel):
+    added: int = 0
+    updated: int = 0
+    reactivated: int = 0
+    deactivated: int = 0
+    # Addresses on the list that belong to client accounts here, left alone.
+    clients_skipped: list[str] = []
+
+
+class CylchSignIn(CylchPerson):
+    # Where in this app to land, e.g. "/projects/<id>". A path here, never an address.
+    next: Optional[str] = Field(default=None, max_length=500)
+
+
+class CylchSignInTicket(BaseModel):
+    url: str
+    expires_in: int
+
+
+class CylchHome(BaseModel):
+    url: Optional[str] = Field(default=None, max_length=255)
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def an_address(cls, v):
+        if v is None or str(v).strip() == "":
+            return None
+        v = str(v).strip().rstrip("/")
+        local = v.startswith("http://localhost") or v.startswith("http://127.0.0.1")
+        if not (v.startswith("https://") or local) or any(c in v for c in " \"'<>"):
+            raise ValueError("Cylch's address has to start with https://")
+        return v
+
+
+def _safe_next(path: Optional[str]) -> str:
+    """A path inside this app, or the projects list. Never somewhere else."""
+    if not path or not path.startswith("/") or path.startswith("//") or "\\" in path or "\n" in path:
+        return "/projects"
+    return path
+
+
+def _follow(db: Session, person: CylchPerson, result: CylchPeopleResult) -> Optional[User]:
+    """Make this app's account for one person on Cylch's list match the list.
+    None for an address that is a client's here: those are not Cylch's."""
+    # A deleted account still holds its address, so it is found too and brought back.
+    user = db.query(User).filter(func.lower(User.email) == person.email).first()
+    if isinstance(user, User) and user.is_client is not False:
+        result.clients_skipped.append(person.email)
+        return None
+    is_admin = person.org_role == OrgRole.admin
+    if not isinstance(user, User):
+        user = User(email=person.email, name=person.name.strip(), status=UserStatus.active,
+                    email_verified=True, org_role=person.org_role, is_superadmin=is_admin)
+        db.add(user)
+        db.flush()
+        result.added += 1
+        return user
+    changed = False
+    if user.deleted_at is not None:
+        user.deleted_at = None
+        user.status = UserStatus.deactivated  # counted as a reactivation just below
+    if user.status != UserStatus.active:
+        user.status = UserStatus.active
+        user.invite_token = None
+        user.invite_token_expires_at = None
+        result.reactivated += 1
+    if user.org_role != person.org_role or user.is_superadmin is not is_admin:
+        user.org_role = person.org_role
+        user.is_superadmin = is_admin
+        changed = True
+    if changed:
+        result.updated += 1
+    return user
+
+
+@router.put("/home", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_limited])
+def set_cylch_home(body: CylchHome, db: Session = Depends(get_db),
+                   settings_row: InstanceSettings = Depends(require_cylch_key)):
+    """Cylch says where it lives, so the sign-in page can send people there.
+    Null takes the "Sign in with Cylch" button away again."""
+    settings_row.cylch_url = body.url
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/people", response_model=CylchPeopleResult, dependencies=[_limited])
+def set_people(body: CylchPeople, db: Session = Depends(get_db),
+               _: InstanceSettings = Depends(require_cylch_key)):
+    """The whole team, as Cylch has it. Anyone here with an organisation role
+    who is not on the list is deactivated: that is someone who has left."""
+    if not any(p.org_role == OrgRole.admin for p in body.people):
+        # An empty or admin-less list would lock everyone out of this app's
+        # settings, and is far more likely a fault in the sender than a decision.
+        raise HTTPException(status_code=422, detail="The list has no administrator on it, so nothing was changed")
+    result = CylchPeopleResult()
+    on_list = {p.email for p in body.people}
+    for person in body.people:
+        _follow(db, person, result)
+    team = db.query(User).filter(User.org_role.isnot(None), User.deleted_at.is_(None)).all()
+    for user in team:
+        if user.is_client is not False or (user.email or "").lower() in on_list:
+            continue
+        if user.status != UserStatus.deactivated:
+            user.status = UserStatus.deactivated
+            user.invite_token = None
+            user.invite_token_expires_at = None
+            # Deactivated accounts are refused already; this also ends any
+            # session that outlives a later reactivation.
+            user.token_version = (user.token_version or 1) + 1
+            result.deactivated += 1
+        user.is_superadmin = False
+    db.commit()
+    return result
+
+
+@router.post("/sign-in", response_model=CylchSignInTicket, dependencies=[_limited])
+def start_sign_in(body: CylchSignIn, db: Session = Depends(get_db),
+                  _: InstanceSettings = Depends(require_cylch_key)):
+    """A one-time address that signs this person in here. Cylch asks only for
+    someone who is signed in to Cylch at that moment, and sends their browser
+    to the address straight away: it is good once, for a minute."""
+    result = CylchPeopleResult()
+    user = _follow(db, body, result)
+    if user is None:
+        raise HTTPException(status_code=409, detail="That address belongs to a client account here. Clients sign in to Adborth themselves.")
+    db.commit()
+    ticket = secrets.token_urlsafe(32)
+    store_cylch_ticket(_hash(ticket), str(user.id))
+    # In the fragment, which browsers do not send to servers or keep in referrers.
+    url = f"{settings.frontend_url.rstrip('/')}/auth/cylch?next={quote(_safe_next(body.next), safe='/')}#ticket={ticket}"
+    return CylchSignInTicket(url=url, expires_in=60)
+
+
+class CylchSignInOffer(BaseModel):
+    # Where "Sign in with Cylch" goes, or null when there is no such button.
+    sign_in_url: Optional[str] = None
+
+
+class CylchTicket(BaseModel):
+    ticket: str = Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+@auth_router.get("", response_model=CylchSignInOffer)
+def sign_in_offer(db: Session = Depends(get_db)):
+    row = db.query(InstanceSettings).first()
+    url = getattr(row, "cylch_url", None)
+    has_key = getattr(row, "cylch_key_hash", None)
+    if not isinstance(url, str) or not url or not isinstance(has_key, str) or not has_key:
+        return CylchSignInOffer()
+    return CylchSignInOffer(sign_in_url=f"{url}/adborth/sign-in")
+
+
+@auth_router.post("/exchange", response_model=TokenResponse,
+                  dependencies=[Depends(rate_limit("cylch_ticket", 20, 60))])
+def exchange_ticket(body: CylchTicket, db: Session = Depends(get_db)):
+    """Swap a ticket for a session. One message for every refusal."""
+    refused = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="That sign-in link has expired. Sign in from Cylch again.")
+    stored = take_cylch_ticket(_hash(body.ticket))
+    if isinstance(stored, bytes):
+        stored = stored.decode("ascii", "ignore")
+    if not isinstance(stored, str) or not stored:
+        raise refused
+    try:
+        user = get_user_by_id(db, uuid.UUID(stored))
+    except ValueError:
+        raise refused
+    if not user or user.status != UserStatus.active or user.is_client is not False:
+        raise refused
+    return TokenResponse(
+        access_token=create_access_token(str(user.id), token_version=user.token_version),
+        refresh_token=create_refresh_token(str(user.id), token_version=user.token_version),
+        needs_password=False,
+    )

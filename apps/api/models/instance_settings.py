@@ -39,5 +39,8 @@ class InstanceSettings(Base):
     cylch_key_made_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     cylch_key_made_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cylch_key_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Where Cylch lives, told to us by Cylch itself with the key. With it the
+    # sign-in page offers "Sign in with Cylch". NULL: no such button.
+    cylch_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

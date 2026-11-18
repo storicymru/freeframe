@@ -166,6 +166,7 @@ app.include_router(hls_proxy.router)
 app.include_router(instance_settings.router)
 app.include_router(instance_branding.router)
 app.include_router(cylch.router)
+app.include_router(cylch.auth_router)
 
 @app.get("/health")
 def health():

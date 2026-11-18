@@ -187,6 +187,26 @@ def take_device_code(code: str):
     return value
 
 
+CYLCH_TICKET_PREFIX = "cylch_ticket:"
+CYLCH_TICKET_EXPIRY_SECONDS = 60
+
+
+def store_cylch_ticket(ticket_hash: str, user_id: str) -> None:
+    """Hold a one-time sign-in ticket Cylch asked for, by its hash, for a minute."""
+    get_redis().setex(f"{CYLCH_TICKET_PREFIX}{ticket_hash}", CYLCH_TICKET_EXPIRY_SECONDS, user_id)
+
+
+def take_cylch_ticket(ticket_hash: str):
+    """The user id stored for a ticket, removed as it is read, or None. One use."""
+    r = get_redis()
+    key = f"{CYLCH_TICKET_PREFIX}{ticket_hash}"
+    pipe = r.pipeline()
+    pipe.get(key)
+    pipe.delete(key)
+    value, _ = pipe.execute()
+    return value
+
+
 def _redis_glob_escape(value: str) -> str:
     """Escape the characters a redis MATCH pattern treats specially."""
     return "".join("\\" + c if c in "\\*?[]" else c for c in value)
