@@ -75,6 +75,13 @@ enum MarkerBuilder {
         "audio", "video", "clip", "title", "mc-clip", "ref-clip", "sync-clip", "asset-clip", "gap", "live-drawing",
     ]
 
+    /// The name of the project in a dragged FCPXML, if it holds one.
+    static func projectName(in fcpxml: String) -> String? {
+        guard let document = try? XMLDocument(xmlString: fcpxml, options: []),
+              let project = try? document.nodes(forXPath: "//project").first as? XMLElement else { return nil }
+        return project.attribute(forName: "name")?.stringValue
+    }
+
     static func addMarkers(to fcpxml: String, comments: [MarkerComment], nameSuffix: String = " – Adborth comments",
                            clipSuffix: String = " – Adborth markers",
                            library: URL? = nil, event: String? = nil) throws -> MarkerResult {

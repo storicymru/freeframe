@@ -65,29 +65,40 @@ enum FinalCutTimeline {
         return timeline
     }
 
-    /// The library and event holding the project open in the timeline, so the
-    /// copy with markers lands beside it without Final Cut asking where to put it.
-    /// Final Cut answers these over Apple Events; nil when it will not say.
-    static func home() -> (library: URL, event: String?)? {
-        func step(_ from: NSObject?, _ name: String) -> NSObject? {
-            let selector = Selector((name))
-            guard let from, from.responds(to: selector) else { return nil }
-            return from.perform(selector)?.takeUnretainedValue() as? NSObject
-        }
-        guard let sequence = step(object(), "activeSequence") else {
-            let timeline = object()
-            PanelLog.write("home: no active sequence (timeline \(timeline.map { "\(type(of: $0))" } ?? "none"), answers \(timeline?.responds(to: Selector(("activeSequence"))) ?? false))")
+    /// The Final Cut this panel is running in.
+    static var runningApp: NSRunningApplication? {
+        ["com.apple.FinalCut", "com.apple.FinalCutApp", "com.apple.FinalCutTrial"]
+            .compactMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }.first
+    }
+
+    /// The open library and event holding the project of that name, so the copy
+    /// with markers lands beside it without Final Cut asking which library to use.
+    /// (Libraries kept by PostLab sit in hidden folders and are not in the list
+    /// Final Cut offers.) Nil when Final Cut will not say or the name is not found.
+    static func home(ofProject name: String) -> (library: URL, event: String)? {
+        guard let bundle = runningApp?.bundleIdentifier else { return nil }
+        let quoted = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let source = """
+        tell application id "\(bundle)"
+            repeat with aLibrary in libraries
+                repeat with anEvent in events of aLibrary
+                    if (count of (projects of anEvent whose name is "\(quoted)")) > 0 then
+                        return (POSIX path of (file of aLibrary as alias)) & linefeed & (name of anEvent)
+                    end if
+                end repeat
+            end repeat
+            return ""
+        end tell
+        """
+        var failure: NSDictionary?
+        let answer = NSAppleScript(source: source)?.executeAndReturnError(&failure).stringValue ?? ""
+        let lines = answer.split(separator: "\n", maxSplits: 1).map(String.init)
+        guard lines.count == 2, !lines[0].isEmpty else {
+            PanelLog.write("home: not found for “\(name)” \(failure.map { "\($0)" } ?? "")")
             return nil
         }
-        let event = step(sequence, "container")
-        let library = step(event, "container")
-        guard let url = step(library, "url") as? URL else {
-            PanelLog.write("home: no library address (event \(event.map { "\(type(of: $0))" } ?? "none"), library \(library.map { "\(type(of: $0))" } ?? "none"))")
-            return nil
-        }
-        let name = step(event, "name") as? String
-        PanelLog.write("home: event “\(name ?? "?")” in \(url.lastPathComponent)")
-        return (url, name)
+        PanelLog.write("home: event “\(lines[1])” in \((lines[0] as NSString).lastPathComponent)")
+        return (URL(fileURLWithPath: lines[0], isDirectory: true), lines[1])
     }
 
     private static func time(_ timeline: NSObject, _ name: String) -> CMTime? {
@@ -277,8 +288,9 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             }
             let home = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("home")
             if FileManager.default.fileExists(atPath: home.path) {
+                let name = (try? String(contentsOf: home, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 try? FileManager.default.removeItem(at: home)
-                _ = FinalCutTimeline.home()
+                _ = FinalCutTimeline.home(ofProject: name)
             }
             // And a file named snap asks the page for a picture of itself.
             let snap = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("snap")
@@ -350,7 +362,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                     MarkerComment(seconds: $0.seconds!, title: "\($0.who): \($0.body)", note: $0.replies.joined(separator: "\n"), done: $0.done)
                 }
                 guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
-                let home = FinalCutTimeline.home()
+                let home = MarkerBuilder.projectName(in: xml).flatMap { FinalCutTimeline.home(ofProject: $0) }
                 let result = try MarkerBuilder.addMarkers(to: xml, comments: comments, library: home?.library, event: home?.event)
                 let safe = result.projectName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
                 let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\(safe).fcpxml")
@@ -369,9 +381,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
 
     /// Opens the finished file in the Final Cut this panel belongs to.
     private func handToFinalCut(_ file: URL) {
-        let running = ["com.apple.FinalCut", "com.apple.FinalCutApp", "com.apple.FinalCutTrial"]
-            .compactMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }.first
-        guard let app = running?.bundleURL else { PanelLog.write("Final Cut not found running"); NSWorkspace.shared.open(file); return }
+        guard let app = FinalCutTimeline.runningApp?.bundleURL else { PanelLog.write("Final Cut not found running"); NSWorkspace.shared.open(file); return }
         NSWorkspace.shared.open([file], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { _, error in
             PanelLog.write("handed to \(app.lastPathComponent): \(error.map { "\($0)" } ?? "ok")")
         }
