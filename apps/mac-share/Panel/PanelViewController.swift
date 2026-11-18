@@ -7,16 +7,62 @@ import AppKit
 import CoreMedia
 import WebKit
 
+/// A plain log file in the panel's own sandbox, for working out what Final Cut
+/// did or did not allow. Kept small: it starts again each time the panel opens.
+enum PanelLog {
+    static let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("panel.log")
+    static func start() { try? "".write(to: url, atomically: true, encoding: .utf8) }
+    static func write(_ text: String) {
+        guard let handle = try? FileHandle(forWritingTo: url) else { return }
+        handle.seekToEndOfFile()
+        handle.write("\(Date()) \(text)\n".data(using: .utf8)!)
+        try? handle.close()
+    }
+}
+
 /// Final Cut's timeline, as an extension is allowed to see it. Apple ships no
 /// Swift interface for this, so the few calls needed are made by name.
+///
+/// Final Cut only tells an extension about the open project once the extension
+/// has asked to be told of changes, so the panel registers as an observer when
+/// it opens. (The project's own details come over Apple Events, which would
+/// need a further entitlement; nothing here uses them.)
+final class TimelineWatcher: NSObject {
+    @objc func activeSequenceChanged() { PanelLog.write("Final Cut: project changed") }
+    @objc func sequenceTimeRangeChanged() { PanelLog.write("Final Cut: project length changed") }
+    @objc func playheadTimeChanged() {}
+}
+
 enum FinalCutTimeline {
+    private static let watcher = TimelineWatcher()
+
+    static func startWatching() {
+        let selector = Selector(("addTimelineObserver:"))
+        guard let timeline = object(), timeline.responds(to: selector) else { return }
+        _ = timeline.perform(selector, with: watcher)
+        PanelLog.write("watching the timeline")
+    }
+
+    /// Where the open project's timecode starts, or nil when none is open.
+    private static func projectStart(_ timeline: NSObject) -> CMTime? {
+        let selector = Selector(("sequenceTimeRange"))
+        guard timeline.responds(to: selector), let method = timeline.method(for: selector) else { return nil }
+        typealias Getter = @convention(c) (AnyObject, Selector) -> CMTimeRange
+        let range = unsafeBitCast(method, to: Getter.self)(timeline, selector)
+        return range.isValid && range.duration.seconds > 0 ? range.start : nil
+    }
     private static func object() -> NSObject? {
         typealias HostFunction = @convention(c) () -> Unmanaged<AnyObject>?
-        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "ProExtensionHostSingleton") else { return nil }
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "ProExtensionHostSingleton") else {
+            PanelLog.write("no ProExtensionHostSingleton symbol"); return nil
+        }
         let host = unsafeBitCast(symbol, to: HostFunction.self)()?.takeUnretainedValue() as? NSObject
         let selector = Selector(("timeline"))
-        guard let host, host.responds(to: selector) else { return nil }
-        return host.perform(selector)?.takeUnretainedValue() as? NSObject
+        guard let host else { PanelLog.write("host is nil"); return nil }
+        guard host.responds(to: selector) else { PanelLog.write("host \(type(of: host)) has no timeline"); return nil }
+        let timeline = host.perform(selector)?.takeUnretainedValue() as? NSObject
+        if timeline == nil { PanelLog.write("host \(type(of: host)) gave no timeline") }
+        return timeline
     }
 
     private static func time(_ timeline: NSObject, _ name: String) -> CMTime? {
@@ -32,19 +78,19 @@ enum FinalCutTimeline {
     static func movePlayhead(toSeconds seconds: Double) -> Bool {
         guard seconds.isFinite, seconds >= 0, let timeline = object() else { return false }
         let selector = Selector(("movePlayheadTo:"))
-        guard timeline.responds(to: selector), let method = timeline.method(for: selector) else { return false }
-        if timeline.responds(to: Selector(("activeSequence"))), timeline.perform(Selector(("activeSequence"))) == nil { return false }
-
-        // Whole frames of this project, counted from where its timecode starts
-        // (often 00:00:00:00, sometimes 01:00:00:00).
-        var target = CMTime(seconds: seconds, preferredTimescale: 60000)
-        if let frame = time(timeline, "sequenceFrameDuration"), frame.seconds > 0 {
-            target = CMTimeMultiply(frame, multiplier: Int32((seconds / frame.seconds + 0.0001).rounded(.down)))
+        guard timeline.responds(to: selector), let method = timeline.method(for: selector) else {
+            PanelLog.write("timeline \(type(of: timeline)) cannot move the playhead"); return false
         }
-        if let start = time(timeline, "sequenceStartTime") { target = CMTimeAdd(start, target) }
+        guard let start = projectStart(timeline) else {
+            PanelLog.write("no project in the timeline (playhead \(String(describing: time(timeline, "playheadTime")?.seconds)))")
+            return false
+        }
+        // Final Cut settles the playhead on a whole frame itself.
+        let target = CMTimeAdd(start, CMTime(seconds: seconds, preferredTimescale: 60000))
 
         typealias Mover = @convention(c) (AnyObject, Selector, CMTime) -> CMTime
-        _ = unsafeBitCast(method, to: Mover.self)(timeline, selector, target)
+        let landed = unsafeBitCast(method, to: Mover.self)(timeline, selector, target)
+        PanelLog.write("asked for \(target.seconds)s, Final Cut answered \(landed.seconds)s")
         return true
     }
 }
@@ -138,6 +184,16 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
     override func viewDidLoad() {
         super.viewDidLoad()
         preferredContentSize = NSSize(width: 520, height: 760)
+        PanelLog.start()
+        PanelLog.write("panel opened")
+        FinalCutTimeline.startWatching()
+        // A file named selftest holding a number of seconds asks for one move, to prove the link.
+        let test = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("selftest")
+        if let text = try? String(contentsOf: test, encoding: .utf8), let seconds = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                PanelLog.write("self-test to \(seconds)s: \(FinalCutTimeline.movePlayhead(toSeconds: seconds))")
+            }
+        }
         NSLog("AdborthPanel: opening %@", site.absoluteString)
         web.load(URLRequest(url: site))
     }
@@ -148,6 +204,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        PanelLog.write("page said \(message.body) from \(message.frameInfo.securityOrigin.host)")
         guard follow.state == .on, message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.host == site.host,
               let body = message.body as? [String: Any], let seconds = body["seconds"] as? Double else { return }
         if FinalCutTimeline.movePlayhead(toSeconds: seconds) {
