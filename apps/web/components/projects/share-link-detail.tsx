@@ -37,6 +37,7 @@ import {
   SHARE_PASSWORD_TOO_LONG,
   sharePasswordTooLong,
 } from "@/lib/share-password";
+import { SelectMenu } from "@/components/ui/select-menu";
 
 // ─── Shared hook for share link data + mutations ────────────────────────────
 
@@ -1000,16 +1001,15 @@ export function ShareLinkSettingsPanel({ token }: ShareLinkSettingsPanelProps) {
                   {shareUrl}
                 </span>
                 <CopyButton text={shareUrl} />
-                <select
+                <SelectMenu
+                  label="Visibility"
                   value={shareLink.visibility || "public"}
-                  onChange={(e) =>
-                    immediateUpdate({ visibility: e.target.value })
-                  }
-                  className="rounded-full border border-border bg-bg-tertiary px-2.5 py-1 text-2xs font-medium text-text-primary outline-none cursor-pointer [color-scheme:auto]"
-                >
-                  <option value="public">🌐 Public</option>
-                  <option value="secure">🔒 Secure</option>
-                </select>
+                  onChange={(visibility) => immediateUpdate({ visibility })}
+                  options={[{ value: "public", label: "Public" }, { value: "secure", label: "Secure" }]}
+                  size="sm"
+                  variant="quiet"
+                  align="end"
+                />
               </div>
               {shareLink.visibility === "secure" && (
                 <p className="text-2xs text-text-tertiary mt-1">

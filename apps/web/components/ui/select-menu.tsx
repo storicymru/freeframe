@@ -42,11 +42,13 @@ export interface SelectMenuProps<T extends string = string> {
   align?: 'start' | 'end'
   className?: string
   title?: string
+  /** For a visible <label htmlFor>. */
+  id?: string
 }
 
 export function SelectMenu<T extends string = string>({
   value, onChange, options, label, placeholder = 'Choose…', disabled, searchable,
-  icon, size = 'md', variant = 'field', align = 'start', className, title,
+  icon, size = 'md', variant = 'field', align = 'start', className, title, id,
 }: SelectMenuProps<T>) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
@@ -93,11 +95,13 @@ export function SelectMenu<T extends string = string>({
       <Popover.Trigger asChild>
         <button
           type="button"
+          id={id}
           role="combobox"
           aria-label={label}
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
+          data-value={value}
           disabled={disabled}
           title={title}
           className={cn(
@@ -157,6 +161,7 @@ export function SelectMenu<T extends string = string>({
                   key={option.value}
                   type="button"
                   role="option"
+                  data-value={option.value}
                   aria-selected={isSelected}
                   onMouseEnter={() => setActive(index)}
                   onClick={() => choose(option)}

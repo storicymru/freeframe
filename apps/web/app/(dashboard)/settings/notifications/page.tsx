@@ -4,6 +4,13 @@ import * as React from "react";
 import { Bell, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { SelectMenu } from "@/components/ui/select-menu";
+
+const CHANNEL_OPTIONS = [
+  { value: "all_on", label: "All On" },
+  { value: "in_app", label: "In-App Only" },
+  { value: "all_off", label: "All Off" },
+];
 
 const commentNotifications = [
   {
@@ -125,17 +132,19 @@ export default function NotificationsPage() {
             <p className="text-xs text-text-tertiary mt-1">
               Email updates will be sent to your email address
             </p>
-            <select
+            <SelectMenu
+              label="Email notifications frequency"
               value={prefs.email_frequency}
-              onChange={(e) => updatePref("email_frequency", e.target.value)}
-              className="mt-3 w-40 rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              <option value="instant">Instantly</option>
-              <option value="15min">15 Minutes</option>
-              <option value="hourly">Hourly</option>
-              <option value="daily">Daily</option>
-              <option value="never">Never</option>
-            </select>
+              onChange={(next) => updatePref("email_frequency", next)}
+              options={[
+                { value: "instant", label: "Instantly" },
+                { value: "15min", label: "15 Minutes" },
+                { value: "hourly", label: "Hourly" },
+                { value: "daily", label: "Daily" },
+                { value: "never", label: "Never" },
+              ]}
+              className="mt-3 w-44"
+            />
           </div>
         </div>
       </section>
@@ -157,15 +166,15 @@ export default function NotificationsPage() {
                   {item.description}
                 </p>
               </div>
-              <select
+              <SelectMenu
+                label={item.title}
                 value={prefs[item.id] || "all_on"}
-                onChange={(e) => updatePref(item.id, e.target.value)}
-                className="rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="all_on">All On</option>
-                <option value="in_app">In-App Only</option>
-                <option value="all_off">All Off</option>
-              </select>
+                onChange={(next) => updatePref(item.id, next)}
+                options={CHANNEL_OPTIONS}
+                size="sm"
+                align="end"
+                className="w-36 shrink-0"
+              />
             </div>
           ))}
         </div>
@@ -188,15 +197,15 @@ export default function NotificationsPage() {
                   {item.description}
                 </p>
               </div>
-              <select
+              <SelectMenu
+                label={item.title}
                 value={prefs[item.id] || "all_on"}
-                onChange={(e) => updatePref(item.id, e.target.value)}
-                className="rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="all_on">All On</option>
-                <option value="in_app">In-App Only</option>
-                <option value="all_off">All Off</option>
-              </select>
+                onChange={(next) => updatePref(item.id, next)}
+                options={CHANNEL_OPTIONS}
+                size="sm"
+                align="end"
+                className="w-36 shrink-0"
+              />
             </div>
           ))}
         </div>

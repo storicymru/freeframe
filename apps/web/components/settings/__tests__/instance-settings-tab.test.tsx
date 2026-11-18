@@ -44,12 +44,21 @@ function deferred<T = unknown>() {
 }
 
 const limitInput = () => screen.getByLabelText(/storage limit/i) as HTMLInputElement
-const modeSelect = () => screen.getByLabelText(/default sign-in method/i) as HTMLSelectElement
+// These three are Adborth's own dropdown: open the field, then choose the
+// option. The field carries the chosen value as `data-value`.
+function pick(field: HTMLElement, value: string) {
+  fireEvent.click(field)
+  const option = screen.getAllByRole('option').find((o) => o.getAttribute('data-value') === value)
+  if (!option) throw new Error(`no option ${value}`)
+  fireEvent.click(option)
+}
+
+const modeSelect = () => screen.getByLabelText(/default sign-in method/i) as HTMLElement
 const settingsPuts = () => put.mock.calls.filter(([url]) => url === '/instance/settings')
 const MB = 1024 ** 2
-const partModeSelect = () => screen.getByLabelText(/upload part size/i) as HTMLSelectElement
+const partModeSelect = () => screen.getByLabelText(/upload part size/i) as HTMLElement
 const partSizeInput = () => screen.queryByLabelText(/part size \(mb\)/i) as HTMLInputElement | null
-const originalsSelect = () => screen.getByLabelText(/outside a project/i) as HTMLSelectElement
+const originalsSelect = () => screen.getByLabelText(/outside a project/i) as HTMLElement
 // The step name is part of the label, which is where this app puts a slider's
 // readout, so the accessible name is what names the step.
 const compressionSlider = () => screen.getByLabelText(/^compression:/i) as HTMLInputElement
@@ -73,7 +82,7 @@ describe('InstanceSettingsTab', () => {
   describe('sign-in method', () => {
     it('saves on change, sending only the sign-in method', async () => {
       render(<InstanceSettingsTab />)
-      fireEvent.change(modeSelect(), { target: { value: 'password' } })
+      pick(modeSelect(), 'password')
 
       await waitFor(() => expect(useBrandingStore.getState().defaultLoginMode).toBe('password'))
       expect(put).toHaveBeenCalledTimes(1)
@@ -85,23 +94,23 @@ describe('InstanceSettingsTab', () => {
       const d = deferred()
       put.mockReturnValue(d.promise)
       render(<InstanceSettingsTab />)
-      fireEvent.change(modeSelect(), { target: { value: 'password' } })
+      pick(modeSelect(), 'password')
 
-      expect(modeSelect()).toHaveValue('password')
+      expect(modeSelect()).toHaveAttribute('data-value', 'password')
       expect(modeSelect()).toBeDisabled()
 
       d.resolve({})
       await waitFor(() => expect(modeSelect()).not.toBeDisabled())
-      expect(modeSelect()).toHaveValue('password')
+      expect(modeSelect()).toHaveAttribute('data-value', 'password')
     })
 
     it('reverts to the saved value and shows the error when the save fails', async () => {
       put.mockRejectedValue(new Error('nope'))
       render(<InstanceSettingsTab />)
-      fireEvent.change(modeSelect(), { target: { value: 'password' } })
+      pick(modeSelect(), 'password')
 
       await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument())
-      expect(modeSelect()).toHaveValue('magic_code')
+      expect(modeSelect()).toHaveAttribute('data-value', 'magic_code')
       expect(modeSelect()).not.toBeDisabled()
       expect(useBrandingStore.getState().defaultLoginMode).toBe('magic_code')
       expect(screen.queryByText('Saved')).not.toBeInTheDocument()
@@ -214,7 +223,7 @@ describe('InstanceSettingsTab', () => {
   describe('upload part size', () => {
     it('is Automatic by default, with no size field', () => {
       render(<InstanceSettingsTab />)
-      expect(partModeSelect()).toHaveValue('auto')
+      expect(partModeSelect()).toHaveAttribute('data-value', 'auto')
       expect(partSizeInput()).not.toBeInTheDocument()
       expect(screen.getByText(/sized from each file/i)).toBeInTheDocument()
     })
@@ -227,7 +236,7 @@ describe('InstanceSettingsTab', () => {
         h.data = saved
       }) as never)
       render(<InstanceSettingsTab />)
-      fireEvent.change(partModeSelect(), { target: { value: 'fixed' } })
+      pick(partModeSelect(), 'fixed')
 
       await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
       expect(put).toHaveBeenCalledWith('/instance/settings', { upload_part_size_bytes: 10 * MB })
@@ -237,10 +246,10 @@ describe('InstanceSettingsTab', () => {
     it('saves 0 when switched back to Automatic', async () => {
       h.data = { ...h.DEFAULT, upload_part_size_bytes: 64 * MB }
       render(<InstanceSettingsTab />)
-      expect(partModeSelect()).toHaveValue('fixed')
+      expect(partModeSelect()).toHaveAttribute('data-value', 'fixed')
       expect(partSizeInput()).toHaveValue(64)
 
-      fireEvent.change(partModeSelect(), { target: { value: 'auto' } })
+      pick(partModeSelect(), 'auto')
       await waitFor(() =>
         expect(put).toHaveBeenCalledWith('/instance/settings', { upload_part_size_bytes: 0 }),
       )
@@ -282,12 +291,12 @@ describe('InstanceSettingsTab', () => {
     it('shows the error when the save fails', async () => {
       put.mockRejectedValue(new Error('storage settings unavailable'))
       render(<InstanceSettingsTab />)
-      fireEvent.change(partModeSelect(), { target: { value: 'fixed' } })
+      pick(partModeSelect(), 'fixed')
 
       await waitFor(() =>
         expect(screen.getByText('storage settings unavailable')).toBeInTheDocument(),
       )
-      expect(partModeSelect()).toHaveValue('auto')
+      expect(partModeSelect()).toHaveAttribute('data-value', 'auto')
     })
 
     it('is disabled until settings have loaded', () => {
@@ -301,12 +310,12 @@ describe('InstanceSettingsTab', () => {
     // Off by default: people outside a project get the transcode, as before.
     it('is Transcode only by default', () => {
       render(<InstanceSettingsTab />)
-      expect(originalsSelect()).toHaveValue('transcode')
+      expect(originalsSelect()).toHaveAttribute('data-value', 'transcode')
     })
 
     it('saves only this setting when changed', async () => {
       render(<InstanceSettingsTab />)
-      fireEvent.change(originalsSelect(), { target: { value: 'original' } })
+      pick(originalsSelect(), 'original')
 
       await waitFor(() =>
         expect(put).toHaveBeenCalledWith('/instance/settings', { allow_original_downloads: true }),
@@ -316,16 +325,16 @@ describe('InstanceSettingsTab', () => {
     it('shows a saved setting', () => {
       h.data = { ...h.DEFAULT, allow_original_downloads: true }
       render(<InstanceSettingsTab />)
-      expect(originalsSelect()).toHaveValue('original')
+      expect(originalsSelect()).toHaveAttribute('data-value', 'original')
     })
 
     it('goes back to the saved value and shows the error when the save fails', async () => {
       put.mockRejectedValue(new Error('nope'))
       render(<InstanceSettingsTab />)
-      fireEvent.change(originalsSelect(), { target: { value: 'original' } })
+      pick(originalsSelect(), 'original')
 
       await waitFor(() => expect(screen.getByText('nope')).toBeInTheDocument())
-      expect(originalsSelect()).toHaveValue('transcode')
+      expect(originalsSelect()).toHaveAttribute('data-value', 'transcode')
     })
 
     it('is disabled until settings have loaded', () => {

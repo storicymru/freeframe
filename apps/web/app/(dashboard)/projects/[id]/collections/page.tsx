@@ -29,6 +29,7 @@ import type {
   Project,
   SharePermission,
 } from "@/types";
+import { SelectMenu } from "@/components/ui/select-menu";
 
 // ─── Filter Rule Builder ───────────────────────────────────────────────────────
 
@@ -84,19 +85,13 @@ function FilterRuleRow({
         onChange={(e) => onChange({ field: e.target.value })}
         className="flex h-8 w-28 rounded-md border border-border bg-bg-secondary px-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
       />
-      <select
+      <SelectMenu<FilterOperator>
+        label="Condition"
         value={rule.operator}
-        onChange={(e) =>
-          onChange({ operator: e.target.value as FilterOperator })
-        }
-        className="flex h-8 rounded-md border border-border bg-bg-secondary px-2 text-sm text-text-primary focus:outline-none focus:border-border-focus"
-      >
-        {OPERATORS.map((op) => (
-          <option key={op.value} value={op.value}>
-            {op.label}
-          </option>
-        ))}
-      </select>
+        onChange={(operator) => onChange({ operator })}
+        options={OPERATORS}
+        size="sm"
+      />
       <input
         type="text"
         placeholder="value"
@@ -201,17 +196,12 @@ function CollectionShareDialog({
                 <label className="text-xs font-medium text-text-secondary">
                   Permission
                 </label>
-                <select
+                <SelectMenu<SharePermission>
+                  label="Permission"
                   value={permission}
-                  onChange={(e) =>
-                    setPermission(e.target.value as SharePermission)
-                  }
-                  className="flex h-9 rounded-md border border-border bg-bg-tertiary px-3 text-sm text-text-primary focus:outline-none focus:border-border-focus"
-                >
-                  <option value="view">View</option>
-                  <option value="comment">Comment</option>
-                  <option value="approve">Approve</option>
-                </select>
+                  onChange={setPermission}
+                  options={[{ value: "view", label: "View" }, { value: "comment", label: "Comment" }, { value: "approve", label: "Approve" }]}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-text-secondary">

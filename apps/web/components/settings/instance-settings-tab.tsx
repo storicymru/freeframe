@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { StorageUsage } from "@/components/shared/storage-usage";
 import { useBrandingStore, type LoginMode } from "@/stores/branding-store";
 import type { InstanceSettings } from "@/types";
+import { SelectMenu } from '@/components/ui/select-menu'
 
 const LOGIN_MODE_LABELS: Record<LoginMode, string> = {
   magic_code: "Magic code",
@@ -479,19 +480,15 @@ export function InstanceSettingsTab() {
           </div>
           <div className="relative">
             {/* disabled while saving, so two quick changes can't land out of order */}
-            <select
+            <SelectMenu<PartSizeMode>
               id="upload-part-size-mode"
+              label="Upload part size"
               value={partMode}
-              onChange={(e) => handlePartModeChange(e.target.value as PartSizeMode)}
+              onChange={handlePartModeChange}
+              options={(Object.keys(PART_SIZE_MODE_LABELS) as PartSizeMode[]).map((mode) => ({ value: mode, label: PART_SIZE_MODE_LABELS[mode] }))}
               disabled={!data || pendingPartMode !== null || partSaving}
-              className="w-full appearance-none cursor-pointer rounded-md border border-border bg-bg-secondary py-1.5 pl-3 pr-8 text-sm text-text-primary transition-colors hover:border-border-focus focus:outline-none focus:border-border-focus focus:ring-1 focus:ring-border-focus disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {(Object.keys(PART_SIZE_MODE_LABELS) as PartSizeMode[]).map((mode) => (
-                <option key={mode} value={mode}>
-                  {PART_SIZE_MODE_LABELS[mode]}
-                </option>
-              ))}
-            </select>
+              className="w-full"
+            />
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
           </div>
           {partMode === "auto" &&
@@ -617,19 +614,15 @@ export function InstanceSettingsTab() {
           </div>
           <div className="relative">
             {/* disabled while saving, so two quick changes can't land out of order */}
-            <select
+            <SelectMenu<OriginalDownloads>
               id="original-downloads"
+              label="Outside a project"
               value={originals}
-              onChange={(e) => handleOriginalsChange(e.target.value as OriginalDownloads)}
+              onChange={handleOriginalsChange}
+              options={(Object.keys(ORIGINAL_DOWNLOADS_LABELS) as OriginalDownloads[]).map((value) => ({ value, label: ORIGINAL_DOWNLOADS_LABELS[value] }))}
               disabled={!data || pendingOriginals !== null}
-              className="w-full appearance-none cursor-pointer rounded-md border border-border bg-bg-secondary py-1.5 pl-3 pr-8 text-sm text-text-primary transition-colors hover:border-border-focus focus:outline-none focus:border-border-focus focus:ring-1 focus:ring-border-focus disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {(Object.keys(ORIGINAL_DOWNLOADS_LABELS) as OriginalDownloads[]).map((value) => (
-                <option key={value} value={value}>
-                  {ORIGINAL_DOWNLOADS_LABELS[value]}
-                </option>
-              ))}
-            </select>
+              className="w-full"
+            />
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
           </div>
           {originalsError ? (
@@ -655,19 +648,15 @@ export function InstanceSettingsTab() {
           </div>
           <div className="relative">
             {/* disabled while saving, so two quick changes can't land out of order */}
-            <select
+            <SelectMenu<LoginMode>
               id="default-login-mode"
+              label="Default sign-in method"
               value={pendingMode ?? defaultLoginMode}
-              onChange={(e) => handleModeChange(e.target.value as LoginMode)}
+              onChange={handleModeChange}
+              options={(Object.keys(LOGIN_MODE_LABELS) as LoginMode[]).map((mode) => ({ value: mode, label: LOGIN_MODE_LABELS[mode] }))}
               disabled={!brandingLoaded || pendingMode !== null}
-              className="w-full appearance-none cursor-pointer rounded-md border border-border bg-bg-secondary py-1.5 pl-3 pr-8 text-sm text-text-primary transition-colors hover:border-border-focus focus:outline-none focus:border-border-focus focus:ring-1 focus:ring-border-focus disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {(Object.keys(LOGIN_MODE_LABELS) as LoginMode[]).map((mode) => (
-                <option key={mode} value={mode}>
-                  {LOGIN_MODE_LABELS[mode]}
-                </option>
-              ))}
-            </select>
+              className="w-full"
+            />
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary" />
           </div>
           {modeError ? (

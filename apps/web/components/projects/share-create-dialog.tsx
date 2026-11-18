@@ -38,6 +38,13 @@ import {
   appearanceFromView,
 } from '@/components/projects/share-appearance-fields'
 import type { AssetResponse, Folder, ShareLink, ShareLinkAppearance } from '@/types'
+import { SelectMenu } from '@/components/ui/select-menu'
+
+/** Who a share link opens for. */
+const VISIBILITY_OPTIONS: { value: 'public' | 'secure'; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'secure', label: 'Secure' },
+]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -404,14 +411,16 @@ function ConfigurePhase({ defaultTitle, onBack, onCreate, creating, createdUrl, 
               <Globe className="h-4 w-4 text-text-tertiary" />
               <span className="text-sm text-text-primary">Visibility</span>
             </div>
-            <select
+            <SelectMenu<'public' | 'secure'>
+              label="Visibility"
               value={visibility}
-              onChange={(e) => setVisibility(e.target.value as 'public' | 'secure')}
-              className="shrink-0 rounded-full border border-border bg-bg-secondary px-2 py-0.5 text-2xs font-medium text-text-primary outline-none cursor-pointer"
-            >
-              <option value="public">🌐 Public</option>
-              <option value="secure">🔒 Secure</option>
-            </select>
+              onChange={setVisibility}
+              options={VISIBILITY_OPTIONS}
+              size="sm"
+              variant="quiet"
+              align="end"
+              className="shrink-0"
+            />
           </div>
 
           {/* Allow comments */}
@@ -930,18 +939,19 @@ function LinkCreatedPhase({ result, allResults, onSelectResult, onDone, onAdvanc
               <Copy className="h-3.5 w-3.5" />
             )}
           </button>
-          <select
+          <SelectMenu<'public' | 'secure'>
+            label="Visibility"
             value={visibility}
-            onChange={(e) => {
-              const v = e.target.value as 'public' | 'secure'
+            onChange={(v) => {
               setVisibility(v)
               patchLink({ visibility: v })
             }}
-            className="shrink-0 rounded-full border border-border bg-bg-secondary px-2 py-0.5 text-2xs font-medium text-text-primary outline-none cursor-pointer"
-          >
-            <option value="public">🌐 Public</option>
-            <option value="secure">🔒 Secure</option>
-          </select>
+            options={VISIBILITY_OPTIONS}
+            size="sm"
+            variant="quiet"
+            align="end"
+            className="shrink-0"
+          />
         </div>
 
         {/* Send to name or email — with autocomplete */}

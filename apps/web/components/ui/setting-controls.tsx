@@ -4,6 +4,7 @@ import * as React from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SelectMenu } from '@/components/ui/select-menu'
 
 /**
  * Compact settings controls: a label row with a segmented control, switch or
@@ -168,25 +169,16 @@ export function SelectRow<T extends string>({
 }) {
   return (
     <SettingRow label={label}>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value as T)}
-          aria-label={label}
-          className={cn(
-            'appearance-none border rounded-md pl-2.5 pr-7 py-1 text-xs text-text-primary cursor-pointer transition-colors',
-            focusRing,
-            tones[tone].select,
-          )}
-        >
-          {options.map((o) => (
-            <option key={o.value} value={o.value} className={tones[tone].option}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-text-tertiary pointer-events-none" />
-      </div>
+      <SelectMenu<T>
+        label={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+        size="sm"
+        variant={tone === 'surface' ? 'field' : 'quiet'}
+        align="end"
+        className="min-w-[6.5rem]"
+      />
     </SettingRow>
   )
 }
