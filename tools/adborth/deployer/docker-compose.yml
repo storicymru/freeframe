@@ -1,0 +1,25 @@
+# Adborth's deploy helper. A separate Container Station application ("adborth-deployer"),
+# so a deploy of the site never restarts the thing doing the deploying.
+#
+# It holds the Docker socket, which is full control of this NAS's containers. It listens on
+# the office network only (the router forwards no port to it), and does nothing without a
+# request signed with the key in /share/Container/freeframe/deployer/key.
+name: adborth-deployer
+
+services:
+  deployer:
+    build:
+      context: /share/Container/freeframe/deployer
+      dockerfile_inline: |
+        FROM docker:27-cli
+        RUN apk add --no-cache python3
+    image: stori/adborth-deployer:1
+    command: ["python3", "/share/Container/freeframe/deployer/server.py"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The same path inside as outside: the site's compose file names its
+      # folders by this path, and Docker resolves them on the NAS itself.
+      - /share/Container/freeframe:/share/Container/freeframe
+    ports:
+      - "192.168.3.210:8399:8399"
+    restart: unless-stopped
