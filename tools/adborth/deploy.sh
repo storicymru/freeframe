@@ -3,6 +3,7 @@
 #
 #   tools/adborth/deploy.sh            build what changed, restart, wait, check
 #   tools/adborth/deploy.sh --status   what the helper is doing or last did
+#   tools/adborth/deploy.sh --update-helper   send the helper its own new code
 #   tools/adborth/deploy.sh --force    deploy even while a video is processing
 #   tools/adborth/deploy.sh --all      rebuild both images whatever changed
 #
@@ -36,6 +37,7 @@ show_status() {
 import json, sys, time
 d = json.loads(sys.argv[1])
 when = lambda t: time.strftime('%H:%M:%S', time.localtime(t)) if t else '-'
+print(f"busy uploads/transcodes: {d.get('busy')}")
 print(f"state: {d['state']}  step: {d['step'] or '-'}  started: {when(d['started'])}  finished: {when(d['finished'])}  ok: {d['ok']}")
 print(d['log_tail'][-1500:])
 PY
@@ -43,10 +45,15 @@ PY
 
 MODE=deploy FORCE=false ALL=false
 for arg in "$@"; do case "$arg" in
-  --status) MODE=status ;; --force) FORCE=true ;; --all) ALL=true ;;
+  --status) MODE=status ;; --update-helper) MODE=update-helper ;; --force) FORCE=true ;; --all) ALL=true ;;
   *) echo "Unknown option $arg"; exit 2 ;;
 esac; done
 if [ "$MODE" = status ]; then show_status; exit; fi
+if [ "$MODE" = update-helper ]; then
+  # The helper's own code changed: copy it over and have it start again.
+  cp tools/adborth/deployer/server.py "$SHARE/deployer/server.py"
+  call /restart "{$(stamp)}" | head -1; sleep 5; show_status; exit
+fi
 
 [ -d "$SHARE/src" ] || { echo "The NAS share is not mounted at $SHARE."; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "Commit your changes first: the NAS gets exactly what is committed."; exit 1; }

@@ -151,7 +151,9 @@ def status() -> dict:
             tail = handle.read().decode("utf-8", errors="replace")
     except OSError:
         pass
-    return {**_state, "log_tail": tail}
+    # Only asked when idle: it costs a trip into the database.
+    busy = busy_versions() if _state["state"] == "idle" else None
+    return {**_state, "busy": busy, "log_tail": tail}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -177,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError
         except (ValueError, json.JSONDecodeError):
             return self._answer(400, {"error": "bad request"})
-        if self.path not in ("/deploy", "/status"):
+        if self.path not in ("/deploy", "/status", "/restart"):
             return self._answer(404, {"error": "not found"})
         refusal = check_request("POST", self.path, body, self.headers.get("X-Signature", ""), payload)
         if refusal:
@@ -185,6 +187,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._answer(401, {"error": "not authorised"})
         if self.path == "/status":
             return self._answer(200, status())
+        if self.path == "/restart":
+            # Picks up a new server.py: Docker starts the container again.
+            if _state["state"] == "running":
+                return self._answer(409, {"error": "a deploy is running"})
+            self._answer(200, {"restarting": True})
+            threading.Timer(0.5, os._exit, args=(0,)).start()
+            return
         code, answer = start_deploy(payload)
         self._answer(code, answer)
 
