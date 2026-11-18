@@ -30,6 +30,10 @@ def render_template(template_name: str, **context) -> str:
     # share, approval, project_added) white-label too.
     if not context.get("org_name"):
         context["org_name"] = resolve_org_name()
+    # Where the email's logo is served from: the web app's own public folder.
+    if "site_url" not in context:
+        from ..config import settings
+        context["site_url"] = (settings.frontend_url or "").rstrip("/")
     template = jinja_env.get_template(template_name)
     return template.render(**context)
 

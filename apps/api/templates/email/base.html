@@ -39,6 +39,15 @@
             letter-spacing: -0.02em;
             margin: 0;
         }
+        /* The service's own name, beside the studio's logo. */
+        .product {
+            color: #d3dbe8;
+            font-family: 'Outfit', 'DM Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
         .content {
             padding: 32px;
         }
@@ -105,14 +114,25 @@
     <div class="container">
         <div class="card">
             <div class="logo">
-                <h1>{{ org_name }}</h1>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left" valign="middle">
+                            {% if site_url %}
+                            <img src="{{ site_url }}/brand/stori-cymru-logo-white.png" alt="{{ org_name }}" height="46" style="display: block; height: 46px; width: auto; border: 0; color: #ffffff; font-size: 20px; font-weight: 800;">
+                            {% else %}
+                            <h1>{{ org_name }}</h1>
+                            {% endif %}
+                        </td>
+                        <td align="right" valign="middle" class="product">Adborth</td>
+                    </tr>
+                </table>
             </div>
             <div class="content">
                 {% block content %}{% endblock %}
             </div>
         </div>
         <div class="footer">
-            <p>© {{ year }} {{ org_name }}</p>
+            <p>Adborth · © {{ year }} {{ org_name }}</p>
             <p class="muted">
                 You're receiving this email because you have an account on {{ org_name }}.
             </p>

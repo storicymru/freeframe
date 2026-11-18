@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **The Stori Cymru logo in emails, and a welcome for invited clients (this fork only).** Every email's header now shows the Stori Cymru logo, served from the web app at `/brand/`, with the service's name, Adborth, beside it. A client arriving from their invitation sees a short Adborth welcome while they are signed in; it is still, not animated, for anyone who has asked their device for less motion.
 - **Stori Cymru Adborth's own look (this fork only).** The interface now uses the same family as Cylch: a navy-based dark theme and Cylch's light palette, the brand red as the default accent with white text on it, and Outfit ExtraBold for page titles and the product name beside DM Sans for text. The sign-in tagline reads "Video review and sign-off". Emails are restyled to match, with a navy header and red buttons. The instance's own name, logo and accent colour (Settings, Branding) still apply on top.
 
 ### Fixed
