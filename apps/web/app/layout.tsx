@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, Outfit } from "next/font/google";
 import { ToastProvider } from "@/components/shared/toast";
+import { UpdatingScreen } from "@/components/shared/updating-screen";
 import { ThemeInitializer } from "@/components/shared/theme-initializer";
 import { BrandingHead } from "@/components/shared/branding-head";
 import { BrandingProvider } from "@/components/shared/branding-provider";
@@ -109,6 +110,7 @@ export default async function RootLayout({
               the defaults and undoing the very flash this removes. */}
           <BrandingHead />
           <ToastProvider>{children}</ToastProvider>
+          <UpdatingScreen />
         </BrandingProvider>
       </body>
     </html>
