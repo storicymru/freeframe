@@ -347,6 +347,10 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
     })) });
     """
 
+    /// Everything the panel sends goes into one event of its own in the project's
+    /// library, so the copies and marker clips are easy to find and to clear out.
+    private static let commentsEvent = "Adborth comments"
+
     /// A project was dropped on the panel: give Final Cut a copy of it with the
     /// open video's comments on it as markers.
     private func addComments(toProject xml: String) {
@@ -369,7 +373,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 }
                 guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
                 let home = MarkerBuilder.projectName(in: xml).flatMap { FinalCutTimeline.home(ofProject: $0) }
-                let result = try MarkerBuilder.addMarkers(to: xml, comments: comments, library: home?.library, event: home?.event)
+                let result = try MarkerBuilder.addMarkers(to: xml, comments: comments, library: home?.library, event: Self.commentsEvent)
                 let safe = result.projectName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
                 let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\(safe).fcpxml")
                 try result.xml.write(to: file, atomically: true, encoding: .utf8)
@@ -379,7 +383,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 func count(_ n: Int, _ one: String, _ many: String) -> String { "\(n) \(n == 1 ? one : many)" }
                 let replies = timed.reduce(0) { $0 + $1.replies.count }
                 let resolved = timed.filter(\.done).count
-                var lines = ["Sent to Final Cut: “\(result.projectName)”" + (home.map { " in \($0.event)" } ?? "") + ", with a marker clip beside it.",
+                var lines = ["Sent to Final Cut: “\(result.projectName)”" + (home != nil ? " in the event “\(Self.commentsEvent)”" : "") + ", with a marker clip beside it.",
                              count(comments.count, "comment", "comments") + " as numbered markers"
                                 + (replies > 0 ? ", " + count(replies, "reply", "replies") + " in the notes" : "")
                                 + (resolved > 0 ? ", \(resolved) already resolved (ticked)" : "") + "."]

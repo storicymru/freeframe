@@ -239,7 +239,7 @@ enum MarkerBuilder {
             // 1080 high. The title does not wrap by itself, so lines are cut to
             // about two thirds of the frame's width.
             let across = width * 1080 / height
-            let size = Int(min(64, across / 24).rounded())
+            let size = Int(min(72, across / 22).rounded())
             let perLine = max(16, min(48, Int(across * 0.8 / (Double(size) * 0.47))))
             let hold = Int64((8 / frame.seconds).rounded())
             for (index, comment) in comments.enumerated() {
@@ -252,7 +252,7 @@ enum MarkerBuilder {
                 let heading = String(format: "%0\(comment.digits)d  ", comment.number) + comment.who + (comment.done ? "  ✓" : "")
                 var lines = wrap(comment.body, at: perLine)
                 for reply in comment.replies { lines += wrap("↳ " + reply, at: perLine) }
-                if lines.count > 7 { lines = Array(lines.prefix(7)) + ["…"] }
+                if lines.count > 6 { lines = Array(lines.prefix(6)) + ["…"] }
 
                 let headStyle = freshID(), bodyStyle = freshID()
                 let title = XMLElement(name: "title")
@@ -269,7 +269,7 @@ enum MarkerBuilder {
                 body.addAttribute(attribute("ref", bodyStyle))
                 text.addChild(head); text.addChild(body)
                 title.addChild(text)
-                for (id, face, colour, points) in [(headStyle, "Bold", "0.796 0.173 0.188 1", size * 3 / 4), (bodyStyle, "Regular", "1 1 1 1", size)] {
+                for (id, face, colour, points) in [(headStyle, "Bold", "1 1 1 1", size * 3 / 4), (bodyStyle, "Bold", "1 1 1 1", size)] {
                     let style = XMLElement(name: "text-style")
                     style.addAttribute(attribute("font", "Helvetica Neue"))
                     style.addAttribute(attribute("fontSize", "\(points)"))
