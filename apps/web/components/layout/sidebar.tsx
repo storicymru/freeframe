@@ -99,8 +99,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <>
       <aside
         className={cn(
-          'surface-navy fixed left-0 top-0 z-30 flex h-screen flex-col',
-          'bg-bg-secondary transition-[width] duration-200 overflow-hidden',
+          // Cylch's sidebar: no panel of its own, it sits on the page's shell colour.
+          'fixed left-0 top-0 z-30 flex h-screen flex-col',
+          'bg-bg-primary transition-[width] duration-200 overflow-hidden',
           collapsed ? 'w-[52px]' : 'w-[220px]',
         )}
       >
@@ -133,7 +134,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-0.5">
+        <nav className={cn('flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-0.5', collapsed ? 'px-1' : 'px-2.5')}>
           {navItems.map((item) => {
             const isActive =
               item.href === '/'
@@ -146,11 +147,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 href={item.href}
                 onClick={() => { setNotifOpen(false); closeUploadsPanel() }}
                 className={cn(
-                  'group relative flex items-center rounded-md transition-colors duration-100',
-                  collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2.5 h-9',
+                  // A 44px pill; black for where you are.
+                  'group relative flex items-center rounded-full transition-colors duration-100',
+                  collapsed ? 'justify-center h-11 w-11 mx-auto' : 'gap-3 px-3.5 h-11',
                   isActive
-                    ? 'bg-bg-hover text-text-primary'
-                    : 'text-text-secondary hover:bg-bg-hover/60 hover:text-text-primary',
+                    ? 'bg-pill text-pill-text'
+                    : 'text-text-primary hover:bg-bg-hover',
                 )}
                 title={collapsed ? item.label : undefined}
               >
@@ -160,7 +162,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 />
                 {!collapsed && (
                   <span
-                    className={cn('text-[13px]', isActive && 'font-medium')}
+                    className="text-sm font-medium"
                   >
                     {item.label}
                   </span>
@@ -175,11 +177,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={() => { closeUploadsPanel(); setNotifOpen((v) => !v) }}
             className={cn(
-              'group relative flex w-full items-center rounded-md transition-colors duration-100',
-              collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2.5 h-9',
+              'group relative flex w-full items-center rounded-full transition-colors duration-100',
+              collapsed ? 'justify-center h-11 w-11 mx-auto' : 'gap-3 px-3.5 h-11',
               notifOpen
-                ? 'bg-bg-hover text-text-primary'
-                : 'text-text-secondary hover:bg-bg-hover/60 hover:text-text-primary',
+                ? 'bg-pill text-pill-text'
+                : 'text-text-primary hover:bg-bg-hover',
             )}
             title={collapsed ? 'Notifications' : undefined}
           >
@@ -195,7 +197,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               )}
             </div>
             {!collapsed && (
-              <span className={cn('text-[13px]', notifOpen && 'font-medium')}>
+              <span className="text-sm font-medium">
                 Notifications
               </span>
             )}
@@ -205,11 +207,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={() => { setNotifOpen(false); togglePanel() }}
             className={cn(
-              'group relative flex w-full items-center rounded-md transition-colors duration-100',
-              collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2.5 h-9',
+              'group relative flex w-full items-center rounded-full transition-colors duration-100',
+              collapsed ? 'justify-center h-11 w-11 mx-auto' : 'gap-3 px-3.5 h-11',
               panelOpen
-                ? 'bg-bg-hover text-text-primary'
-                : 'text-text-secondary hover:bg-bg-hover/60 hover:text-text-primary',
+                ? 'bg-pill text-pill-text'
+                : 'text-text-primary hover:bg-bg-hover',
             )}
             title={collapsed ? 'Uploads' : undefined}
           >
@@ -222,7 +224,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               )}
             </div>
             {!collapsed && (
-              <span className={cn('text-[13px]', panelOpen && 'font-medium')}>
+              <span className="text-sm font-medium">
                 Uploads
               </span>
             )}
@@ -230,7 +232,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </nav>
 
       {/* Bottom section */}
-      <div className="border-t border-border p-2 space-y-1 shrink-0">
+      <div className={cn('space-y-1 shrink-0', collapsed ? 'p-1 pb-2' : 'p-2.5')}>
         {/* Instance storage indicator — ring when collapsed, used/limit bar when expanded */}
         {instance && (
           <div className={cn(collapsed ? 'flex justify-center py-1' : 'px-2.5 py-1.5')}>
@@ -253,8 +255,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <DropdownMenu.Trigger asChild>
               <button
                 className={cn(
-                  'flex w-full items-center rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors',
-                  collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2.5 px-2 py-1.5',
+                  // Expanded, the signed-in person sits on a white card, as in Cylch.
+                  'flex w-full items-center text-text-secondary hover:text-text-primary transition-colors',
+                  collapsed
+                    ? 'justify-center h-11 w-11 mx-auto rounded-full hover:bg-bg-hover'
+                    : 'gap-2.5 p-2.5 rounded-[22px] bg-bg-secondary',
                 )}
                 title={collapsed ? (user?.name ?? 'Account') : undefined}
               >
@@ -316,8 +321,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={onToggle}
             className={cn(
-              'flex w-full items-center rounded-md text-text-tertiary hover:bg-bg-hover hover:text-text-secondary transition-colors',
-              collapsed ? 'justify-center h-8 w-8 mx-auto' : 'gap-2 px-2.5 h-8',
+              'flex w-full items-center rounded-full text-text-tertiary hover:bg-bg-hover hover:text-text-secondary transition-colors',
+              collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-2 px-3.5 h-9',
             )}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >

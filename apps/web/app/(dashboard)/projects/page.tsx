@@ -324,7 +324,7 @@ export default function ProjectsPage() {
           sits in an h-8 row so it centers with the h-8 buttons. */}
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div>
-          <h1 className="flex h-8 items-center text-lg font-semibold text-text-primary">
+          <h1 className="flex h-10 items-center text-[28px] leading-10 text-text-primary sm:text-4xl">
             Projects
           </h1>
           {projects && projects.length > 0 && (
@@ -356,9 +356,12 @@ export default function ProjectsPage() {
           >
             {canCreate && (
               <Dialog.Trigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4" />
+                {/* Cylch's create button: the black pill, with red only on the plus. */}
+                <Button size="lg" className="gap-3.5 pl-5 pr-1.5">
                   New Project
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white">
+                    <Plus className="h-4 w-4" strokeWidth={2.5} />
+                  </span>
                 </Button>
               </Dialog.Trigger>
             )}

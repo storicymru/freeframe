@@ -29,6 +29,11 @@ const config: Config = {
           tertiary: 'var(--text-tertiary)',
           inverse: 'var(--text-inverse)',
         },
+        // The selected item and the main action: black on light, inverted on dark.
+        pill: {
+          DEFAULT: 'var(--pill)',
+          text: 'var(--pill-text)',
+        },
         accent: {
           DEFAULT: 'var(--accent)',
           hover: 'var(--accent-hover)',

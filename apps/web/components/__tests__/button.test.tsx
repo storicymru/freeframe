@@ -11,7 +11,7 @@ describe('Button component', () => {
   it('primary variant has correct classes', () => {
     render(<Button variant="primary">Primary</Button>)
     const button = screen.getByRole('button')
-    expect(button.className).toContain('bg-accent')
+    expect(button.className).toContain('bg-pill')
   })
 
   it('ghost variant has correct classes', () => {

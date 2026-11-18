@@ -60,7 +60,7 @@ export function Header({ onSearchOpen }: HeaderProps) {
   const breadcrumbs = [...urlCrumbs, ...extraCrumbs.map((c) => ({ label: c.label, href: c.href ?? '' }))]
 
   return (
-    <header className="sticky top-0 z-20 flex h-11 items-center justify-between border-b border-border bg-bg-primary/90 backdrop-blur-sm px-4">
+    <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 bg-bg-primary/90 backdrop-blur-sm px-4">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-1 text-[13px]">
         {breadcrumbs.map((crumb, index) => {
@@ -92,11 +92,12 @@ export function Header({ onSearchOpen }: HeaderProps) {
         {/* Search trigger */}
         <button
           onClick={onSearchOpen}
-          className="flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary/60 px-2.5 py-1 text-xs text-text-tertiary hover:border-border-focus hover:text-text-secondary transition-colors"
+          // Cylch's search: a white pill on the page, no border.
+          className="flex h-10 items-center gap-2.5 rounded-full bg-bg-secondary px-4 text-[13px] text-text-tertiary hover:text-text-secondary transition-colors sm:min-w-[220px]"
         >
-          <Search className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Search</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-border bg-bg-tertiary/50 px-1 py-0.5 font-mono text-[10px] text-text-tertiary">
+          <Search className="h-4 w-4" />
+          <span className="hidden sm:inline flex-1 text-left">Search</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 font-sans text-xs text-text-tertiary">
             <span>⌘</span>K
           </kbd>
         </button>
@@ -106,10 +107,10 @@ export function Header({ onSearchOpen }: HeaderProps) {
           <button
             onClick={toggleRightPanel}
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+              'flex h-10 w-10 items-center justify-center rounded-full bg-bg-secondary transition-colors',
               rightPanelOpen
-                ? 'text-text-primary bg-accent-muted'
-                : 'text-text-tertiary hover:bg-bg-hover hover:text-text-primary',
+                ? 'text-text-primary'
+                : 'text-text-tertiary hover:text-text-primary',
             )}
             title={rightPanelOpen ? 'Hide panel' : 'Show panel'}
           >
