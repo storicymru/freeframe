@@ -15,6 +15,8 @@ from ..services.s3_service import put_object, generate_presigned_get_url, delete
 from ..services.storage import project_storage_used_bytes, project_storage_used_bytes_map
 from ..services.activity_service import log_activity
 from ..services.permissions import ROLE_RANK, can_create_projects, effective_member, org_project_role
+from ..models.branding import ProjectBranding
+from ..services.owned_keys import is_project_logo_key, sign_if_owned
 from ..config import settings
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -29,6 +31,18 @@ def _resolve_poster_url(project: Project) -> str | None:
     if project.poster_s3_key:
         return generate_presigned_get_url(project.poster_s3_key)
     return None
+
+def _apply_branding(resp: ProjectResponse, branding) -> None:
+    """Put a project's branding on its response. Anything that is not a real
+    branding row is ignored, and a logo is only ever one this project's own
+    upload step issued."""
+    if not isinstance(branding, ProjectBranding):
+        return
+    resp.brand_primary_color = branding.primary_color
+    resp.brand_secondary_color = branding.secondary_color
+    resp.brand_logo_url = sign_if_owned(
+        is_project_logo_key(branding.project_id, branding.logo_s3_key), branding.logo_s3_key)
+
 
 def _require_project_owner(db: Session, project_id: uuid.UUID, user: User) -> ProjectMember:
     member = effective_member(db, project_id, user)
@@ -104,9 +118,17 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
         .all()
     )
 
+    # Batch: each project's branding, for its card.
+    brandings = {
+        b.project_id: b
+        for b in db.query(ProjectBranding).filter(ProjectBranding.project_id.in_(all_project_ids)).all()
+        if isinstance(b, ProjectBranding)
+    }
+
     result = []
     for p in projects:
         resp = ProjectResponse.model_validate(p)
+        _apply_branding(resp, brandings.get(p.id))
         resp.poster_url = _resolve_poster_url(p)
         resp.asset_count = asset_counts.get(p.id, 0)
         resp.storage_bytes = storage_map.get(p.id, 0)
@@ -137,6 +159,7 @@ def get_project(project_id: uuid.UUID, db: Session = Depends(get_db), current_us
     resp.member_count = db.query(func.count(ProjectMember.id)).filter(
         ProjectMember.project_id == project_id, ProjectMember.deleted_at.is_(None),
     ).scalar() or 0
+    _apply_branding(resp, db.query(ProjectBranding).filter(ProjectBranding.project_id == project_id).first())
     return resp
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

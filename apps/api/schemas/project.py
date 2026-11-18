@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import uuid
 from datetime import datetime
 from ..models.project import ProjectType, ProjectRole
@@ -26,7 +26,20 @@ class ProjectResponse(BaseModel):
     storage_bytes: int = 0
     member_count: int = 0
     role: ProjectRole | None = None
+    # The client's branding for this project (set here, or sent across by
+    # Cylch): shown on the project's card and page as well as on review pages.
+    brand_logo_url: str | None = None
+    brand_primary_color: str | None = None
+    brand_secondary_color: str | None = None
     model_config = {"from_attributes": True}
+
+    @field_validator("brand_logo_url", "brand_primary_color", "brand_secondary_color", mode="before")
+    @classmethod
+    def _branding_is_set_by_the_route(cls, v):
+        # These are not columns of a project: the route fills them in from the
+        # project's branding. Whatever the object being read happens to offer
+        # under these names is not branding.
+        return v if isinstance(v, str) else None
 
 class ProjectMemberResponse(BaseModel):
     id: uuid.UUID

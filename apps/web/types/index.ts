@@ -247,6 +247,10 @@ export interface Project {
   storage_bytes?: number;
   member_count?: number;
   role?: string | null;
+  /** The client's branding, set here or sent across by Cylch. */
+  brand_logo_url?: string | null;
+  brand_primary_color?: string | null;
+  brand_secondary_color?: string | null;
 }
 
 export interface ProjectMember {

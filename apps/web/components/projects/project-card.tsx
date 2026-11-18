@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { MoreHorizontal, ImagePlus, Globe, Lock } from 'lucide-react'
 import { cn, formatRelativeTime, formatBytes } from '@/lib/utils'
 import { ContextMenuArea, DotsMenu } from '@/components/shared/item-menu'
-import { ProjectPoster } from './project-poster'
+import { ProjectLogoTile, ProjectPoster } from './project-poster'
 import { useProjectMenu } from './menus/project-menu'
 import type { Project } from '@/types'
 
@@ -55,8 +55,11 @@ export function ProjectCard({
               )}
             </div>
 
+            {/* The client's logo, where the project has one */}
+            <ProjectLogoTile project={project} className="absolute left-3 top-3 h-14 w-14 shadow-sm" />
+
             {/* Public/role badges */}
-            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+            <div className={cn('absolute top-2.5 flex items-center gap-1.5', project.brand_logo_url ? 'right-2.5' : 'left-2.5')}>
               {project.is_public && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-black/30 backdrop-blur-sm px-2 py-0.5 text-[10px] font-medium text-white/90">
                   <Globe className="h-2.5 w-2.5" />
