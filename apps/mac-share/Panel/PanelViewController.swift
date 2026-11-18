@@ -28,8 +28,8 @@ enum PanelLog {
 /// it opens. (The project's own details come over Apple Events, which would
 /// need a further entitlement; nothing here uses them.)
 final class TimelineWatcher: NSObject {
-    @objc func activeSequenceChanged() { PanelLog.write("Final Cut: project changed") }
-    @objc func sequenceTimeRangeChanged() { PanelLog.write("Final Cut: project length changed") }
+    @objc func activeSequenceChanged() { PanelLog.write("Final Cut: project changed"); FinalCutTimeline.noteProjectChanged() }
+    @objc func sequenceTimeRangeChanged() { PanelLog.write("Final Cut: project length changed"); FinalCutTimeline.noteProjectChanged() }
     @objc func playheadTimeChanged() {}
 }
 
@@ -41,6 +41,38 @@ enum FinalCutTimeline {
         guard let timeline = object(), timeline.responds(to: selector) else { return }
         _ = timeline.perform(selector, with: watcher)
         PanelLog.write("watching the timeline")
+        noteProjectChanged()
+    }
+
+    /// Which project is open is worked out here, quietly, a moment after Final
+    /// Cut says the timeline changed, and kept. Asked for at the moment the
+    /// button is pressed, the same question froze Final Cut or came back empty.
+    private static var known: OpenProject?
+    private static var pending: Timer?
+    static var commentsEvent = "Adborth comments"
+
+    static func noteProjectChanged() {
+        DispatchQueue.main.async {
+            pending?.invalidate()
+            pending = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+                known = openProject(skippingEvent: commentsEvent)
+            }
+        }
+    }
+
+    /// The open project as last worked out, if it still fits what is in the
+    /// timeline now. Nil starts a fresh look, ready for the next press.
+    static func knownOpenProject() -> OpenProject? {
+        guard let timeline = object() else { return nil }
+        let selector = Selector(("sequenceTimeRange"))
+        guard timeline.responds(to: selector), let method = timeline.method(for: selector) else { return nil }
+        typealias Getter = @convention(c) (AnyObject, Selector) -> CMTimeRange
+        let range = unsafeBitCast(method, to: Getter.self)(timeline, selector)
+        if let known, range.isValid, abs(known.duration.seconds - range.duration.seconds) < known.frame.seconds / 2,
+           abs(known.start.seconds - range.start.seconds) < known.frame.seconds / 2 { return known }
+        PanelLog.write("open project: nothing kept for a timeline of \(range.duration.seconds)s from \(range.start.seconds)s; looking again")
+        noteProjectChanged()
+        return nil
     }
 
     /// Where the open project's timecode starts, or nil when none is open.
@@ -149,6 +181,7 @@ enum FinalCutTimeline {
         """
         var failure: NSDictionary?
         let answer = NSAppleScript(source: source)?.executeAndReturnError(&failure).stringValue ?? ""
+        PanelLog.write("open project: timeline \(range.duration.seconds)s from \(range.start.seconds)s; Final Cut listed \(answer.split(separator: "\n").count) projects")
         if answer.isEmpty { PanelLog.write("open project: Final Cut listed none \(failure.map { "\($0)" } ?? "")"); return nil }
 
         var found: [OpenProject] = []
@@ -378,7 +411,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             let open = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("open")
             if FileManager.default.fileExists(atPath: open.path) {
                 try? FileManager.default.removeItem(at: open)
-                _ = FinalCutTimeline.openProject(skippingEvent: Self.commentsEvent)
+                FinalCutTimeline.noteProjectChanged()
             }
             // And a file named snap asks the page for a picture of itself.
             let snap = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("snap")
@@ -461,15 +494,12 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                     MarkerComment(seconds: $0.seconds!, who: $0.who, body: $0.body, replies: $0.replies, done: $0.done)
                 }
                 guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
-                // Final Cut is asked about the open project here, once the click
-                // that started this has long returned. Asked from inside the click,
-                // the panel waits on Final Cut while Final Cut waits on the panel,
-                // and both freeze.
+                // Which project is open was worked out earlier, away from the click.
                 var open: FinalCutTimeline.OpenProject?
                 let xml: String
                 if let dropped { xml = dropped } else {
-                    guard let project = FinalCutTimeline.openProject(skippingEvent: Self.commentsEvent) else {
-                        self.note.stringValue = "Open your project in Final Cut's timeline first, or drag it onto this panel"
+                    guard let project = FinalCutTimeline.knownOpenProject() else {
+                        self.note.stringValue = "Still finding your project in Final Cut. Press again in a few seconds, or drag the project onto this panel."
                         return
                     }
                     open = project
