@@ -317,7 +317,10 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         send.action = #selector(sendComments)
         send.controlSize = .small
         send.bezelStyle = .rounded
-        send.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        // Stori red with white lettering, so it is not lost in the dark bar.
+        send.bezelColor = NSColor(srgbRed: 0.796, green: 0.173, blue: 0.188, alpha: 1)
+        send.attributedTitle = NSAttributedString(string: send.title, attributes: [
+            .foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)])
         send.toolTip = "Puts this video's comments into Final Cut as a marker clip for the project open in the timeline. Drag the project onto this panel instead to also get a copy of it with the markers on its own clips."
         let bar = NSStackView(views: [follow, send, NSView(), note])
         bar.orientation = .horizontal
