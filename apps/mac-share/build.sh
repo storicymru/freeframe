@@ -22,7 +22,20 @@ done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Adborth.icns"
 rm -rf "$ICONSET"
 
-# Signed for this Mac only (no Apple developer account needed).
+# The panel inside Final Cut Pro: a workflow extension, carried inside the app.
+# It is built straight with the compiler; its entry point is the system's own
+# extension main, and Final Cut asks for the view controller by name.
+APPEX="$APP/Contents/PlugIns/Adborth.appex"
+mkdir -p "$APPEX/Contents/MacOS" "$APPEX/Contents/Resources"
+swiftc -O -module-name AdborthPanel -parse-as-library -application-extension \
+  Panel/PanelViewController.swift -o "$APPEX/Contents/MacOS/AdborthPanel" \
+  -Xlinker -e -Xlinker _NSExtensionMain
+cp Panel/Info.plist "$APPEX/Contents/Info.plist"
+cp "$APP/Contents/Resources/Adborth.icns" "$APPEX/Contents/Resources/Adborth.icns"
+
+# Signed for this Mac only (no Apple developer account needed). The panel is
+# signed first, with its sandbox: macOS will not load an extension without one.
+codesign --force --sign - --entitlements Panel/Panel.entitlements "$APPEX"
 codesign --force --sign - "$APP"
 echo "Built $APP"
 
@@ -30,5 +43,6 @@ if [ "${1:-}" = "install" ]; then
   rm -rf /Applications/Adborth.app
   cp -R "$APP" /Applications/Adborth.app
   /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Adborth.app
-  echo "Installed /Applications/Adborth.app"
+  pluginkit -a /Applications/Adborth.app/Contents/PlugIns/Adborth.appex
+  echo "Installed /Applications/Adborth.app (restart Final Cut Pro to see the panel under Window > Extensions)"
 fi
