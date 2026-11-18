@@ -109,7 +109,14 @@ enum MarkerBuilder {
         func attribute(_ name: String, _ value: String) -> XMLNode { XMLNode.attribute(withName: name, stringValue: value) as! XMLNode }
         root.addAttribute(attribute("version", "1.11"))
         let format = XMLElement(name: "format")
-        for (key, value) in [("id", "r1"), ("frameDuration", frame.text), ("width", "1920"), ("height", "1080")] { format.addAttribute(attribute(key, value)) }
+        // Final Cut warns about a format it cannot place: give it one of its own
+        // named HD formats where the frame rate has one, and always a colour space.
+        let named = [(Rational(1001, 24000), "2398"), (Rational(1, 24), "24"), (Rational(1, 25), "25"), (Rational(1001, 30000), "2997"),
+                     (Rational(1, 30), "30"), (Rational(1, 50), "50"), (Rational(1001, 60000), "5994"), (Rational(1, 60), "60")]
+        var details = [("id", "r1")]
+        if let rate = named.first(where: { $0.0 == frame })?.1 { details.append(("name", "FFVideoFormat1080p\(rate)")) }
+        details += [("frameDuration", frame.text), ("width", "1920"), ("height", "1080"), ("colorSpace", "1-1-1 (Rec. 709)")]
+        for (key, value) in details { format.addAttribute(attribute(key, value)) }
         let resources = XMLElement(name: "resources")
         resources.addChild(format)
         let gap = XMLElement(name: "gap")
