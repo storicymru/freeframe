@@ -2,7 +2,7 @@ from pydantic import AfterValidator, BaseModel, EmailStr, field_validator, model
 from typing import Annotated, Literal
 import string
 import uuid
-from ..models.user import UserStatus
+from ..models.user import OrgRole, UserStatus
 from ..services.auth_service import BCRYPT_MAX_PASSWORD_BYTES
 from ..services.avatar_keys import sign_avatar
 
@@ -92,6 +92,8 @@ class UserResponse(BaseModel):
     is_superadmin: bool = False
     # A client-portal account. The web app sends these to /portal and nowhere else.
     is_client: bool = False
+    # The person's organisation role, or None for someone outside it.
+    org_role: OrgRole | None = None
     preferences: dict = {}
 
     model_config = {"from_attributes": True}
@@ -100,6 +102,13 @@ class UserResponse(BaseModel):
     @classmethod
     def _client_flag_is_a_real_bool(cls, v):
         return v is True
+
+    @field_validator("org_role", mode="before")
+    @classmethod
+    def _org_role_is_a_real_role(cls, v):
+        if isinstance(v, OrgRole):
+            return v
+        return OrgRole(v) if isinstance(v, str) and v in OrgRole._value2member_map_ else None
 
     @model_validator(mode="after")
     def resolve_avatar_url(self) -> "UserResponse":
@@ -173,6 +182,11 @@ class UpdateProfileRequest(BaseModel):
 
 class UpdateUserRoleRequest(BaseModel):
     is_admin: bool
+
+class UpdateOrgRoleRequest(BaseModel):
+    """None takes the person out of the organisation: they keep only the
+    projects they were added to by name."""
+    org_role: OrgRole | None
 
 class DeactivateUserRequest(BaseModel):
     user_id: uuid.UUID

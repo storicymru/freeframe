@@ -11,8 +11,8 @@ import uuid
 from ..database import get_db
 from ..middleware.auth import get_current_user
 from ..models.project import Project
-from ..models.user import User, UserStatus
-from ..schemas.auth import UserResponse, AdminUserResponse, UpdateUserRoleRequest
+from ..models.user import OrgRole, User, UserStatus
+from ..schemas.auth import UserResponse, AdminUserResponse, UpdateOrgRoleRequest, UpdateUserRoleRequest
 from .users import require_admin
 from ..tasks.celery_app import send_task_safe
 from ..tasks.cleanup_tasks import cleanup_soft_deleted
@@ -151,6 +151,49 @@ def update_user_role(
         raise HTTPException(status_code=404, detail="User not found")
 
     user.is_superadmin = body.is_admin
+    # An administrator is both; someone stepping down stays in the organisation
+    # as a content manager rather than dropping out of every project.
+    if body.is_admin:
+        user.org_role = OrgRole.admin
+    elif user.org_role == OrgRole.admin:
+        user.org_role = OrgRole.manager
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.patch("/users/{user_id}/org-role", response_model=AdminUserResponse)
+def update_user_org_role(
+    user_id: uuid.UUID,
+    body: UpdateOrgRoleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set a person's organisation role: user, content manager, administrator,
+    or none. Someone with a role sees every project without being added to each.
+    Only administrators may; nobody takes their own administrator role away; a
+    client account never holds one."""
+    if not current_user.is_superadmin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can change user roles"
+        )
+    if user_id == current_user.id and body.org_role != OrgRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot remove your own admin role"
+        )
+
+    user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_client is not False and body.org_role is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A client account cannot join the organisation"
+        )
+
+    user.org_role = body.org_role
+    user.is_superadmin = body.org_role == OrgRole.admin
     db.commit()
     db.refresh(user)
     return user

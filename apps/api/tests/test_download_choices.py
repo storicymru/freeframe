@@ -152,7 +152,7 @@ def _no_rate_limit():
 @pytest.fixture
 def member():
     """The caller is a member of the asset's project; the instance setting is off."""
-    with patch("apps.api.services.downloads.get_project_member", return_value=MagicMock()), \
+    with patch("apps.api.services.downloads.effective_member", return_value=MagicMock()), \
          patch("apps.api.services.downloads.get_allow_original_downloads", return_value=False):
         yield
 
@@ -160,7 +160,7 @@ def member():
 def _outsider(allow_original_downloads=False):
     """Not a member, so only the instance setting decides."""
     return _patches(
-        patch("apps.api.services.downloads.get_project_member", return_value=None),
+        patch("apps.api.services.downloads.effective_member", return_value=None),
         patch("apps.api.services.downloads.get_allow_original_downloads",
               return_value=allow_original_downloads),
     )
@@ -350,7 +350,7 @@ def test_asking_for_the_original_without_leave_is_refused_not_missing():
 def test_original_allowed_for_download_by_request_kind(mock_db):
     asset = SimpleNamespace(project_id=uuid.uuid4(), created_by=uuid.uuid4())
     member = SimpleNamespace(id=uuid.uuid4())
-    with patch("apps.api.services.downloads.get_project_member", return_value=MagicMock()), \
+    with patch("apps.api.services.downloads.effective_member", return_value=MagicMock()), \
          patch("apps.api.services.downloads.get_allow_original_downloads", return_value=False):
         # Named in the menu: membership is enough.
         assert downloads.original_allowed_for_download(mock_db, asset, member, "original", False)
@@ -375,15 +375,15 @@ def test_creators_and_members_may_have_the_original_and_others_follow_the_settin
     creator = SimpleNamespace(id=asset.created_by)
     someone = SimpleNamespace(id=uuid.uuid4())
 
-    with patch("apps.api.services.downloads.get_project_member", return_value=None), \
+    with patch("apps.api.services.downloads.effective_member", return_value=None), \
          patch("apps.api.services.downloads.get_allow_original_downloads", return_value=False):
         assert downloads.may_download_original(mock_db, asset, creator)
         assert not downloads.may_download_original(mock_db, asset, someone)
         assert not downloads.may_download_original(mock_db, asset, None)
-    with patch("apps.api.services.downloads.get_project_member", return_value=MagicMock()), \
+    with patch("apps.api.services.downloads.effective_member", return_value=MagicMock()), \
          patch("apps.api.services.downloads.get_allow_original_downloads", return_value=False):
         assert downloads.may_download_original(mock_db, asset, someone)
-    with patch("apps.api.services.downloads.get_project_member", return_value=None), \
+    with patch("apps.api.services.downloads.effective_member", return_value=None), \
          patch("apps.api.services.downloads.get_allow_original_downloads", return_value=True):
         assert downloads.may_download_original(mock_db, asset, None)
 
@@ -495,7 +495,7 @@ def test_a_member_bulk_download_follows_the_instance_setting(
     # members, who can still pick Original one asset at a time.
     asset = _video_asset(mock_db, _media_file())
 
-    with patch("apps.api.services.downloads.get_project_member", return_value=MagicMock()), \
+    with patch("apps.api.services.downloads.effective_member", return_value=MagicMock()), \
          patch("apps.api.services.downloads.get_allow_original_downloads", return_value=setting):
         response = client.get(
             f"/assets/{asset.id}/stream?download=true&prefer_original=true", headers=auth_headers

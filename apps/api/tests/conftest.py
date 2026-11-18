@@ -57,6 +57,10 @@ def _make_user(
     u.email_verified = False
     u.preferences = {}
     u.invite_token = None
+    # A real account that is not a client and holds no organisation role:
+    # left as MagicMock attributes these would read as "a client".
+    u.is_client = False
+    u.org_role = None
     return u
 
 
@@ -64,6 +68,7 @@ def _make_mock_db() -> MagicMock:
     """Return a fresh mock Session."""
     db = MagicMock()
     db.query.return_value = db
+    db.join.return_value = db
     db.filter.return_value = db
     db.first.return_value = None
     db.all.return_value = []

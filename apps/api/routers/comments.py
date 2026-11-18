@@ -50,7 +50,7 @@ from ..services import comment_export
 from ..services.sign_off import ensure_not_signed_off
 from ..services.permissions import (
     require_asset_access, can_access_asset, validate_share_link_with_session, validate_asset_in_share,
-    require_asset_project_live,
+    require_asset_project_live, effective_member,
 )
 from ..tasks.email_tasks import send_mention_email, send_comment_email
 from ..tasks.celery_app import send_task_safe
@@ -636,13 +636,8 @@ def update_comment(
     # Allow comment owner or project owner to edit
     if comment.author_id != current_user.id:
         asset = _get_asset(db, comment.asset_id)
-        member = db.query(ProjectMember).filter(
-            ProjectMember.project_id == asset.project_id,
-            ProjectMember.user_id == current_user.id,
-            ProjectMember.role == ProjectRole.owner,
-            ProjectMember.deleted_at.is_(None),
-        ).first()
-        if not member:
+        member = effective_member(db, asset.project_id, current_user)
+        if not member or member.role != ProjectRole.owner:
             raise HTTPException(status_code=403, detail="Can only edit your own comments")
     comment.body = body.body
     comment.updated_at = datetime.now(timezone.utc)
@@ -665,13 +660,8 @@ def delete_comment(
     # Allow comment owner or project owner to delete
     if comment.author_id != current_user.id:
         asset = _get_asset(db, comment.asset_id)
-        member = db.query(ProjectMember).filter(
-            ProjectMember.project_id == asset.project_id,
-            ProjectMember.user_id == current_user.id,
-            ProjectMember.role == ProjectRole.owner,
-            ProjectMember.deleted_at.is_(None),
-        ).first()
-        if not member:
+        member = effective_member(db, asset.project_id, current_user)
+        if not member or member.role != ProjectRole.owner:
             raise HTTPException(status_code=403, detail="Can only delete your own comments")
     comment.deleted_at = datetime.now(timezone.utc)
     db.commit()
@@ -781,10 +771,9 @@ def delete_attachment(
 
     # Must be comment author OR project owner/editor
     from ..models.project import ProjectRole
-    from ..services.permissions import get_project_member
     is_comment_author = comment.author_id == current_user.id
     if not is_comment_author:
-        pm = get_project_member(db, asset.project_id, current_user.id)
+        pm = effective_member(db, asset.project_id, current_user)
         if not pm or pm.role not in (ProjectRole.owner, ProjectRole.editor):
             raise HTTPException(status_code=403, detail="Not authorized to delete this attachment")
 

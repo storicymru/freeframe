@@ -51,13 +51,13 @@ def is_project_client(db: Session, project_id: uuid.UUID, user_id: uuid.UUID) ->
 def require_portal_access(db: Session, link: ShareLink, user: Optional[User]) -> None:
     """Who may open a project's portal link: its clients, and its members (so
     the team can look at what the client sees). Nobody else, signed in or not."""
-    from .permissions import get_project_member  # local: permissions imports this module
+    from .permissions import effective_member  # local: permissions imports this module
 
     if user is None:
         raise HTTPException(status_code=403, detail="Sign in to open the client portal")
     if is_project_client(db, link.project_id, user.id):
         return
-    if get_project_member(db, link.project_id, user.id):
+    if effective_member(db, link.project_id, user):
         return
     raise HTTPException(status_code=403, detail="You do not have access to this client portal")
 

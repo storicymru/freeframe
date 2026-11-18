@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from ..database import get_db
-from ..models.user import User, UserStatus
+from ..models.user import User, UserStatus, OrgRole
 from ..services.auth_service import hash_password, create_access_token, create_refresh_token, get_email_owner
 from ..schemas.auth import NewPassword, NewUserEmail, TokenResponse
 from ..middleware.rate_limit import rate_limit
@@ -87,6 +87,7 @@ def create_superadmin(body: CreateSuperAdminRequest, db: Session = Depends(get_d
         password_hash=hash_password(body.password),
         status=UserStatus.active,
         is_superadmin=True,
+        org_role=OrgRole.admin,
         email_verified=True,  # Skip verification for initial setup
     )
     db.add(user)

@@ -16,6 +16,16 @@ class UserStatus(str, PyEnum):
     pending_invite = "pending_invite"
     pending_verification = "pending_verification"
 
+class OrgRole(str, PyEnum):
+    """A person's standing in the organisation that runs this instance. Someone
+    with a role sees every project without being added to each; what the role
+    lets them do there is in services/permissions.py. No role (NULL) is how
+    everyone starts: a freelancer or other outsider, who sees only the projects
+    they are added to. A client account never holds one."""
+    member = "member"      # "User": upload, comment and share on every project
+    manager = "manager"    # "Content manager": full control of every project, and creates them
+    admin = "admin"        # "Administrator": as a manager, and manages people and the instance
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -28,6 +38,8 @@ class User(Base):
     is_superadmin: Mapped[bool] = mapped_column(default=False)
     # A client-portal account: it may use the portal and nothing else (see middleware/auth.py).
     is_client: Mapped[bool] = mapped_column(default=False, server_default="false", nullable=False)
+    # Kept in step with is_superadmin by routers/admin.py: an administrator is both.
+    org_role: Mapped[Optional[OrgRole]] = mapped_column(Enum(OrgRole, name="userorgrole"), nullable=True)
     email_verified: Mapped[bool] = mapped_column(default=False)
     invite_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     invite_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

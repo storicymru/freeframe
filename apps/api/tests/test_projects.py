@@ -48,7 +48,9 @@ def _mock_project_member(project_id: uuid.UUID, user_id: uuid.UUID, role: Projec
 
 
 def test_create_project(client, auth_headers, mock_db, test_user):
-    """POST /projects — happy path returns 201."""
+    """POST /projects — happy path returns 201 for a content manager."""
+    from apps.api.models.user import OrgRole
+    test_user.org_role = OrgRole.manager
     org_id = uuid.uuid4()
 
     def _refresh_side_effect(obj):

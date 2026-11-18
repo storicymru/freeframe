@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models.asset import Asset, AssetType, MediaFile
 from ..models.user import User
-from .permissions import get_project_member
+from .permissions import effective_member
 from .s3_service import build_download_filename, get_s3_client, head_object_size
 from .storage import get_allow_original_downloads
 
@@ -59,7 +59,7 @@ def may_download_original(db: Session, asset: Asset, user: Optional[User]) -> bo
     """The asset's creator and project members always may; anyone else only
     when the instance allows it."""
     if user is not None and (
-        asset.created_by == user.id or get_project_member(db, asset.project_id, user.id)
+        asset.created_by == user.id or effective_member(db, asset.project_id, user)
     ):
         return True
     return get_allow_original_downloads(db)

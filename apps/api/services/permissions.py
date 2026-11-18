@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 import uuid
-from ..models.user import User, UserStatus
+from ..models.user import OrgRole, User, UserStatus
 from ..models.project import Project, ProjectMember, ProjectRole
 from ..models.asset import Asset
 from ..models.folder import Folder
@@ -11,6 +11,58 @@ from ..services.redis_service import verify_share_session
 
 
 # ── Project-level ──────────────────────────────────────────────────────────────
+
+ROLE_RANK = {
+    ProjectRole.owner: 4,
+    ProjectRole.editor: 3,
+    ProjectRole.reviewer: 2,
+    ProjectRole.viewer: 1,
+}
+
+# What an organisation role is worth on every project. Being added to a project
+# by name can still raise someone above this, never lower them below it.
+ORG_PROJECT_ROLE = {
+    OrgRole.member: ProjectRole.editor,
+    OrgRole.manager: ProjectRole.owner,
+    OrgRole.admin: ProjectRole.owner,
+}
+
+
+def org_project_role(user) -> ProjectRole | None:
+    """The role this person holds on every project through the organisation, or
+    None. A client account has none whatever its row says: the portal is all a
+    client may reach."""
+    if user is None or getattr(user, "is_client", False) is not False:
+        return None
+    role = getattr(user, "org_role", None)
+    return ORG_PROJECT_ROLE.get(role) if isinstance(role, OrgRole) else None
+
+
+def can_create_projects(user) -> bool:
+    """Content managers and administrators start projects."""
+    if getattr(user, "is_client", False) is not False:
+        return False
+    return getattr(user, "is_superadmin", False) is True or getattr(user, "org_role", None) in (OrgRole.manager, OrgRole.admin)
+
+
+def effective_member(db: Session, project_id: uuid.UUID, user) -> ProjectMember | None:
+    """The user's standing on a live project: their own membership, raised to
+    their organisation role where that is higher, or the organisation role alone.
+    None for someone with neither, and for a deleted project.
+
+    When the organisation role decides, what comes back is a stand-in that was
+    never saved (its id is None): the stored membership is not touched."""
+    member = get_project_member(db, project_id, user.id)
+    through_org = org_project_role(user)
+    if through_org is None:
+        return member
+    if member is not None and ROLE_RANK.get(member.role, 0) >= ROLE_RANK[through_org]:
+        return member
+    if member is None:
+        live = db.query(Project.id).filter(Project.id == project_id, Project.deleted_at.is_(None)).first()
+        if not live:
+            return None
+    return ProjectMember(project_id=project_id, user_id=user.id, role=through_org)
 
 def get_project_member(db: Session, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMember | None:
     """The user's live membership of a live project. A deleted project has no members."""
@@ -64,14 +116,8 @@ def require_project_role(
     Role hierarchy (descending): owner > editor > reviewer > viewer
     A project that does not exist or is deleted is 404, before the role check.
     """
-    ROLE_RANK = {
-        ProjectRole.owner: 4,
-        ProjectRole.editor: 3,
-        ProjectRole.reviewer: 2,
-        ProjectRole.viewer: 1,
-    }
     require_live_project(db, project_id)
-    member = get_project_member(db, project_id, user.id)
+    member = effective_member(db, project_id, user)
     if not member:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a project member")
     if ROLE_RANK[member.role] < ROLE_RANK[minimum_role]:
@@ -87,7 +133,7 @@ def require_project_visible(db: Session, project_id: uuid.UUID, user: User) -> P
     not exist or is deleted, 403 unless the user is a member or the project is public.
     Returns the membership, if any."""
     project = require_live_project(db, project_id)
-    member = get_project_member(db, project_id, user.id)
+    member = effective_member(db, project_id, user)
     if not member and not project.is_public:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a project member")
     return member
@@ -134,7 +180,8 @@ def project_events_denial(
         ProjectMember.deleted_at.is_(None),
     )
     row = db.execute(
-        select(User.status, User.token_version, Project.is_public, is_member.label("is_member"))
+        select(User.status, User.token_version, Project.is_public, is_member.label("is_member"),
+               User.org_role, User.is_client)
         .join(Project, Project.id == project_id)
         .where(
             User.id == user_id,
@@ -146,7 +193,8 @@ def project_events_denial(
         return EVENTS_ACCESS_REVOKED
     if row.token_version != token_version:
         return EVENTS_TOKEN_REVOKED
-    if not (row.is_member or row.is_public):
+    through_org = isinstance(row.org_role, OrgRole) and row.is_client is False
+    if not (row.is_member or row.is_public or through_org):
         return EVENTS_ACCESS_REVOKED
     return None
 
@@ -167,8 +215,8 @@ def can_access_asset(db: Session, asset: Asset, user: User) -> bool:
     if asset.created_by == user.id:
         return True
 
-    # 2. Project member
-    if get_project_member(db, asset.project_id, user.id):
+    # 2. Project member, by name or through the organisation
+    if effective_member(db, asset.project_id, user):
         return True
 
     # 3. Direct AssetShare with user
@@ -307,7 +355,7 @@ def creator_skips_link_password(db: Session, link: ShareLink, user: "User | None
         project_id = db.query(Folder.project_id).filter(Folder.id == link.folder_id).scalar()
     if project_id is None:
         return False
-    member = get_project_member(db, project_id, user.id)
+    member = effective_member(db, project_id, user)
     return member is not None and member.role in (ProjectRole.owner, ProjectRole.editor)
 
 

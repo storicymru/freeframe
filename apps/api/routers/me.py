@@ -16,6 +16,7 @@ from ..models.comment import Comment
 from ..schemas.asset import AssetResponse, NotificationResponse
 from ..routers.assets import _build_asset_response, _build_asset_responses_bulk
 from ..services.search import escape_like
+from ..services.permissions import org_project_role
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -88,13 +89,16 @@ def list_my_assets(
         ).subquery()
         query = db.query(Asset).filter(
             Asset.deleted_at.is_(None),
-        ).filter(
-            or_(
-                Asset.project_id.in_(project_ids),
-                Asset.id.in_(shared_ids),
-                Asset.assignee_id == current_user.id,
-            )
         )
+        # Through the organisation every project is theirs to see.
+        if org_project_role(current_user) is None:
+            query = query.filter(
+                or_(
+                    Asset.project_id.in_(project_ids),
+                    Asset.id.in_(shared_ids),
+                    Asset.assignee_id == current_user.id,
+                )
+            )
 
     # Nothing from a project in the trash, whichever filter found it.
     query = query.join(Project, Project.id == Asset.project_id).filter(Project.deleted_at.is_(None))
@@ -121,10 +125,11 @@ def search_my_folders(
     ).subquery()
 
     query = db.query(Folder).join(Project, Project.id == Folder.project_id).filter(
-        Folder.project_id.in_(project_ids),
         Folder.deleted_at.is_(None),
         Project.deleted_at.is_(None),
     )
+    if org_project_role(current_user) is None:
+        query = query.filter(Folder.project_id.in_(project_ids))
     if q and q.strip():
         query = query.filter(Folder.name.ilike(f"%{escape_like(q.strip())}%"))
 
