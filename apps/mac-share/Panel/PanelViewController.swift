@@ -161,6 +161,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         status.isHidden = true
 
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 720))
+        root.autoresizingMask = [.width, .height]   // follow Final Cut's window, whatever its size
         UserDefaults.standard.register(defaults: ["follow": true])
         follow.state = UserDefaults.standard.bool(forKey: "follow") ? .on : .off
         follow.target = self
@@ -191,26 +192,23 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             status.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             status.centerYAnchor.constraint(equalTo: root.centerYAnchor),
             status.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -48),
-            root.widthAnchor.constraint(greaterThanOrEqualToConstant: 380),
-            root.heightAnchor.constraint(greaterThanOrEqualToConstant: 480),
         ])
         view = root
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        preferredContentSize = NSSize(width: 520, height: 760)
         PanelLog.start()
         PanelLog.write("panel opened")
         FinalCutTimeline.startWatching()
-        // A file named selftest holding a number of seconds asks for one move, to prove the link.
-        let test = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("selftest")
-        if let text = try? String(contentsOf: test, encoding: .utf8), let seconds = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            // Through the page, the way a real click goes: a video's time is set.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
-                self?.web.evaluateJavaScript("document.createElement('video').currentTime = \(seconds); 'set'") { result, error in
-                    PanelLog.write("self-test through the page to \(seconds)s: \(String(describing: result)) \(String(describing: error))")
-                }
+        // For fault-finding: a file named probe.js in the panel's temporary folder
+        // is run in the page and its answer logged, without restarting the panel.
+        let probe = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("probe.js")
+        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            guard let self, let script = try? String(contentsOf: probe, encoding: .utf8) else { return }
+            try? FileManager.default.removeItem(at: probe)
+            self.web.evaluateJavaScript(script) { result, error in
+                PanelLog.write("probe at \(self.web.url?.absoluteString ?? "-"): \(String(describing: result)) \(error.map { "\($0)" } ?? "")")
             }
         }
         NSLog("AdborthPanel: opening %@", site.absoluteString)
