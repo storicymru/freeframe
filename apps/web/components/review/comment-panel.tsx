@@ -28,6 +28,7 @@ import {
   Lock,
   Download,
 } from "lucide-react";
+import { FinalCutControls } from "./final-cut-controls";
 import { cn, copyToClipboard, formatTime, formatRelativeTime } from "@/lib/utils";
 import { useReviewStore } from "@/stores/review-store";
 import type { Asset } from "@/types";
@@ -1319,6 +1320,9 @@ export function CommentPanel({
           <p className="text-[11px] text-status-error">{exportError}</p>
         </div>
       )}
+
+      {/* Only inside the Adborth panel in Final Cut; nothing in a browser. */}
+      {currentAsset?.asset_type === "video" && <FinalCutControls />}
 
       {/* ─── Search bar ───────────────────────────────────────────── */}
       {searchOpen && (

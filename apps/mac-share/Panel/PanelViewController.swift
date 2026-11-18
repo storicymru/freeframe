@@ -302,6 +302,13 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
     private let follow = NSButton(checkboxWithTitle: "Timeline follows the player", target: nil, action: nil)
     private let note = NSTextField(labelWithString: "")
     private let send = NSButton(title: "Comments to Final Cut", target: nil, action: nil)
+    private var bar: NSStackView!
+    private var webAboveBar: NSLayoutConstraint!
+    private var webToBottom: NSLayoutConstraint!
+    /// The page is showing the Final Cut controls itself (newer Adborth sites do,
+    /// on a video's page), so the bar along the bottom keeps out of the way.
+    private var pageShowsControls = false
+    private var hideBar: Timer?
 
     /// Where Adborth lives. `defaults write cymru.stori.adborth.panel site <url>` points it elsewhere.
     private var site: URL {
@@ -359,7 +366,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         send.attributedTitle = NSAttributedString(string: send.title, attributes: [
             .foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)])
         send.toolTip = "Puts this video's comments into Final Cut as a marker clip for the project open in the timeline. Drag the project onto this panel instead to also get a copy of it with the markers on its own clips."
-        let bar = NSStackView(views: [follow, send, NSView(), note])
+        bar = NSStackView(views: [follow, send, NSView(), note])
         bar.orientation = .horizontal
         bar.alignment = .centerY
         bar.edgeInsets = NSEdgeInsets(top: 5, left: 12, bottom: 5, right: 12)
@@ -372,7 +379,6 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             web.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             web.topAnchor.constraint(equalTo: root.topAnchor),
-            web.bottomAnchor.constraint(equalTo: bar.topAnchor),
             bar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             bar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
@@ -381,7 +387,10 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             status.centerYAnchor.constraint(equalTo: root.centerYAnchor),
             status.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -48),
         ])
+        webAboveBar = web.bottomAnchor.constraint(equalTo: bar.topAnchor)
+        webToBottom = web.bottomAnchor.constraint(equalTo: root.bottomAnchor)
         view = root
+        arrangeBar()
     }
 
     override func viewDidLoad() {
@@ -478,10 +487,10 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
     private func addComments(dropped: String?) {
         let parts = web.url?.pathComponents ?? []
         guard let at = parts.firstIndex(of: "assets"), at + 1 < parts.count, UUID(uuidString: parts[at + 1]) != nil else {
-            note.stringValue = dropped == nil ? "Open the video in this panel first" : "Open the video in this panel first, then drop the project"
+            say(dropped == nil ? "Open the video in this panel first" : "Open the video in this panel first, then drop the project")
             return
         }
-        note.stringValue = "Fetching comments…"
+        say("Fetching comments…")
         web.callAsyncJavaScript(Self.commentsScript, arguments: ["assetID": parts[at + 1]], in: nil, in: .page) { [weak self] outcome in
             guard let self else { return }
             do {
@@ -493,13 +502,13 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 let comments = timed.map {
                     MarkerComment(seconds: $0.seconds!, who: $0.who, body: $0.body, replies: $0.replies, done: $0.done)
                 }
-                guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
+                guard !comments.isEmpty else { self.say("No timed comments on \(answer.name)"); return }
                 // Which project is open was worked out earlier, away from the click.
                 var open: FinalCutTimeline.OpenProject?
                 let xml: String
                 if let dropped { xml = dropped } else {
                     guard let project = FinalCutTimeline.knownOpenProject() else {
-                        self.note.stringValue = "Still finding your project in Final Cut. Press again in a few seconds, or drag the project onto this panel."
+                        self.say("Still finding your project in Final Cut. Press again in a few seconds, or drag the project onto this panel.")
                         return
                     }
                     open = project
@@ -526,11 +535,11 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                                 + (resolved > 0 ? ", \(resolved) already resolved (ticked)" : "") + "."]
                 if result.alreadyThere > 0 { lines.append("\(result.alreadyThere) were on the project already and were not added twice.") }
                 if untimed > 0 { lines.append(count(untimed, "comment has", "comments have") + " no time on the video and " + (untimed == 1 ? "was" : "were") + " left out.") }
-                self.note.stringValue = lines.joined(separator: "\n")
+                self.say(lines.joined(separator: "\n"))
             } catch {
                 PanelLog.write("markers failed: \(error)")
                 let text = "\(error)".contains("signed-out") ? "Sign in to Adborth in this panel first" : error.localizedDescription
-                self.note.stringValue = text
+                self.say(text)
             }
         }
     }
@@ -543,20 +552,72 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         }
     }
 
+    /// A site that has the controls in its own pages needs no bar: it then shows
+    /// only when there is something to say and no page control to say it in.
+    private var siteHasControls: Bool { UserDefaults.standard.bool(forKey: "siteHasControls") }
+
+    private func arrangeBar() {
+        let own = !siteHasControls
+        follow.isHidden = !own
+        send.isHidden = !own
+        let shown = own || (!pageShowsControls && !note.stringValue.isEmpty)
+        bar.isHidden = !shown
+        webAboveBar.isActive = shown
+        webToBottom.isActive = !shown
+    }
+
+    /// One line (or a short summary) for whoever is at the panel: in the page's
+    /// own controls when they are on screen, otherwise in the bar.
+    private func say(_ text: String) {
+        note.stringValue = text
+        tellPage(["note": text])
+        arrangeBar()
+        hideBar?.invalidate()
+        if siteHasControls, !pageShowsControls, !text.isEmpty {
+            hideBar = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in
+                self?.note.stringValue = ""
+                self?.arrangeBar()
+            }
+        }
+    }
+
+    private func tellPage(_ detail: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: detail), let json = String(data: data, encoding: .utf8) else { return }
+        web.evaluateJavaScript("window.dispatchEvent(new CustomEvent('adborth-panel', { detail: \(json) }))", completionHandler: nil)
+    }
+
     @objc private func followChanged() {
         UserDefaults.standard.set(follow.state == .on, forKey: "follow")
-        note.stringValue = ""
+        say("")
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         PanelLog.write("page said \(message.body) from \(message.frameInfo.securityOrigin.host)")
-        guard follow.state == .on, message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.host == site.host,
-              let body = message.body as? [String: Any], let seconds = body["seconds"] as? Double else { return }
+        guard message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.host == site.host,
+              let body = message.body as? [String: Any] else { return }
+        // The page's own Final Cut controls (see final-cut-controls.tsx in the web app).
+        if let shown = body["controls"] as? Bool {
+            pageShowsControls = shown
+            if shown {
+                UserDefaults.standard.set(true, forKey: "siteHasControls")
+                tellPage(["follow": follow.state == .on, "note": ""])
+            }
+            note.stringValue = ""
+            arrangeBar()
+            return
+        }
+        if let on = body["follow"] as? Bool {
+            follow.state = on ? .on : .off
+            UserDefaults.standard.set(on, forKey: "follow")
+            return
+        }
+        if body["action"] as? String == "comments" { addComments(dropped: nil); return }
+        guard follow.state == .on, let seconds = body["seconds"] as? Double else { return }
         if FinalCutTimeline.movePlayhead(toSeconds: seconds) {
             let whole = Int(seconds)
-            note.stringValue = String(format: "Playhead at %d:%02d:%02d", whole / 3600, whole / 60 % 60, whole % 60)
+            say(String(format: "Playhead at %d:%02d:%02d", whole / 3600, whole / 60 % 60, whole % 60))
         } else {
-            note.stringValue = "No project open in the timeline"
+            say("No project open in the timeline")
         }
     }
 
