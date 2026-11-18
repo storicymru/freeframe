@@ -1,4 +1,4 @@
-from pydantic import AfterValidator, BaseModel, EmailStr, model_validator, Field
+from pydantic import AfterValidator, BaseModel, EmailStr, field_validator, model_validator, Field
 from typing import Annotated, Literal
 import string
 import uuid
@@ -90,9 +90,16 @@ class UserResponse(BaseModel):
     status: UserStatus
     email_verified: bool = False
     is_superadmin: bool = False
+    # A client-portal account. The web app sends these to /portal and nowhere else.
+    is_client: bool = False
     preferences: dict = {}
 
     model_config = {"from_attributes": True}
+
+    @field_validator("is_client", mode="before")
+    @classmethod
+    def _client_flag_is_a_real_bool(cls, v):
+        return v is True
 
     @model_validator(mode="after")
     def resolve_avatar_url(self) -> "UserResponse":

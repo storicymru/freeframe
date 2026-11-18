@@ -299,6 +299,10 @@ def validate_share_link_with_session(
     Skips password check if the caller is the authenticated link creator."""
     link = validate_share_link(db, token)
     enforce_share_link_visibility(link, current_user)
+    # A project's client-portal link opens only for its clients and members.
+    if getattr(link, "is_portal", False) is True:
+        from .portal import require_portal_access
+        require_portal_access(db, link, current_user)
     if link.password_hash:
         # Skip password for authenticated link creator (e.g. admin settings preview)
         if current_user and link.created_by == current_user.id:
@@ -337,6 +341,10 @@ def validate_asset_in_share(db: Session, link: ShareLink, asset: Asset) -> None:
     this — the token alone only proves the caller holds *some* valid link, not that this
     particular asset is within its shared scope.
     """
+    # The client portal shows only what the team has put in front of the client.
+    if getattr(link, "is_portal", False) is True:
+        from .portal import require_client_visible
+        require_client_visible(asset)
     if link.folder_id:
         if asset.folder_id != link.folder_id:
             if not asset.folder_id or not _is_descendant_of(db, asset.folder_id, link.folder_id):

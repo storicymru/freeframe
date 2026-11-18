@@ -13,6 +13,7 @@ optional_bearer_scheme = HTTPBearer(auto_error=False)
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> User:
     token = credentials.credentials
     payload = decode_token(token)
@@ -21,6 +22,13 @@ def get_current_user(
     user = get_user_by_id(db, uuid.UUID(payload["sub"]))
     if not user or user.status == UserStatus.deactivated:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or deactivated")
+    # A client-portal account may call the portal's routes and nothing else.
+    # Checked here, in the one dependency every signed-in route goes through,
+    # so a route added later is closed to clients without anyone remembering to.
+    if user.is_client is True:
+        from ..services.portal import client_may_call
+        if request is None or not client_may_call(request.url.path):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not available to client accounts")
     return user
 
 def get_optional_user(

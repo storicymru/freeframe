@@ -34,6 +34,8 @@ class SignOff(Base):
     version_number: Mapped[int] = mapped_column(nullable=False)
     signer_name: Mapped[str] = mapped_column(String(255), nullable=False)
     signer_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Set when the signer was signed in (a portal client): the account that signed.
+    signer_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     # The exact words the signer ticked.
     statement: Mapped[str] = mapped_column(Text, nullable=False)
     ip_address: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

@@ -1,0 +1,12 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2>Hello {{ client_name }}</h2>
+<p><strong>{{ inviter_name }}</strong> has set up a client portal for <strong>{{ project_name }}</strong>.</p>
+<p>It is where you can watch and comment on videos that need your review, sign them off, and download your finished files, all in one place.</p>
+<p style="text-align: center; margin: 24px 0;">
+    <a href="{{ portal_link }}" class="button" style="padding: 14px 32px; font-size: 16px;">Open your portal</a>
+</p>
+<p class="muted">This link signs you in and works for {{ expiry_days }} days. After that, sign in with this email address and we will send you a code. There is no password to remember.</p>
+<p class="muted">If you were not expecting this, you can ignore this email.</p>
+{% endblock %}

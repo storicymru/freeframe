@@ -132,7 +132,9 @@ def verify_magic_code(body: VerifyMagicCodeRequest, db: Session = Depends(get_db
     db.commit()
     
     # Check if user needs to set password
-    needs_password = user.password_hash is None
+    # A client-portal account signs in by code every time and is never asked
+    # to choose a password.
+    needs_password = user.password_hash is None and user.is_client is not True
     
     return TokenResponse(
         access_token=create_access_token(str(user.id), token_version=user.token_version),

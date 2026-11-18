@@ -58,6 +58,9 @@ def sign_off_unlocks_download(db: Session, link: ShareLink, asset: Asset) -> boo
     which is what turns its downloads on."""
     if not _asks_for_sign_off(link):
         return False
+    from .portal import portal_releases_download  # local: avoids an import cycle
+    if portal_releases_download(link, asset):
+        return True
     return active_sign_off(db, asset.id) is not None
 
 
@@ -70,5 +73,8 @@ def share_download_allowed(db: Session, link: ShareLink, asset: Asset) -> bool:
     follows its download switch as before.
     """
     if _asks_for_sign_off(link):
+        from .portal import portal_releases_download  # local: avoids an import cycle
+        if portal_releases_download(link, asset):
+            return True
         return active_sign_off(db, asset.id) is not None
     return bool(link.allow_download)

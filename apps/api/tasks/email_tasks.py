@@ -366,3 +366,42 @@ def send_sign_off_team_email(
         return {"status": "sent", "to": to_email}
     except Exception as exc:
         self.retry(exc=exc)
+
+
+@shared_task(bind=True, queue="email_high", max_retries=3, default_retry_delay=30)
+def send_client_portal_invite_email(
+    self,
+    to_email: str,
+    client_name: str,
+    inviter_name: str,
+    project_name: str,
+    portal_link: str,
+    expiry_days: int = 7,
+):
+    """Invite a client to their portal. The link signs them in once; after
+    that they sign in with a code sent to this address."""
+    try:
+        subject = f"Your {resolve_org_name()} client portal: {project_name}"
+        html_body = render_template(
+            "email/client_portal_invite.html",
+            subject=subject,
+            client_name=client_name,
+            inviter_name=inviter_name,
+            project_name=project_name,
+            portal_link=portal_link,
+            expiry_days=expiry_days,
+        )
+        text_body = (
+            f"Hello {client_name},\n\n{inviter_name} has set up a client portal for {project_name}, "
+            f"where you can review videos, sign them off and download the finished files.\n\n"
+            f"Open your portal: {portal_link}\n\nThis link signs you in and works for {expiry_days} days. "
+            "After that, sign in with your email address and we will send you a code."
+        )
+
+        success = _send_email(to_email, subject, html_body, text_body)
+        if not success:
+            raise Exception("Email sending failed")
+        return {"status": "sent", "to": to_email}
+    except Exception as exc:
+        self.retry(exc=exc)
+

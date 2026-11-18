@@ -38,6 +38,9 @@ class ShareLink(Base):
     allow_download: Mapped[bool] = mapped_column(Boolean, default=False)
     # Ask the client to sign the video off; its downloads open once they have.
     require_sign_off: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
+    # The project's client-portal link: made by the portal, opened only by the
+    # project's clients and members, and kept out of the team's list of links.
+    is_portal: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     show_versions: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     show_watermark: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     appearance: Mapped[dict] = mapped_column(JSON, nullable=False, server_default='{"layout":"grid","theme":"dark","accent_color":null,"open_in_viewer":true,"sort_by":"created_at"}')

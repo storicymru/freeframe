@@ -149,14 +149,21 @@ def sign_off_asset(
     version = _version_to_sign(db, link, asset, body.version_id)
     statement = sign_off_statement(asset.name, version.version_number)
 
+    # A signed-in client signs as their account, whatever the form says: the
+    # record then names a login, not just what was typed.
+    signed_in_client = current_user is not None and current_user.is_client is True
+    signer_name = current_user.name if signed_in_client else body.name
+    signer_email = current_user.email if signed_in_client else body.email
+
     record = SignOff(
         asset_id=asset.id,
         version_id=version.id,
         share_link_id=link.id,
         asset_name=asset.name,
         version_number=version.version_number,
-        signer_name=body.name,
-        signer_email=body.email,
+        signer_name=signer_name,
+        signer_email=signer_email,
+        signer_user_id=current_user.id if signed_in_client else None,
         statement=statement,
         ip_address=_client_ip(request),
         user_agent=(request.headers.get("user-agent") or "")[:500] or None,
@@ -166,8 +173,8 @@ def sign_off_asset(
     db.add(ShareLinkActivity(
         share_link_id=link.id,
         action=ShareActivityAction.approved,
-        actor_email=body.email,
-        actor_name=body.name,
+        actor_email=signer_email,
+        actor_name=signer_name,
         asset_id=asset.id,
         asset_name=asset.name,
     ))
@@ -179,12 +186,16 @@ def sign_off_asset(
     db.commit()
     db.refresh(record)
 
-    share_url = f"{settings.frontend_url}/share/{link.token}"
+    # A portal client goes back to their portal, where the download now is.
+    if getattr(link, "is_portal", False) is True:
+        share_url = f"{settings.frontend_url}/portal"
+    else:
+        share_url = f"{settings.frontend_url}/share/{link.token}"
     signed_at = (record.created_at or datetime.now(timezone.utc)).strftime("%d %B %Y at %H:%M UTC")
     send_task_safe(
         send_sign_off_confirmation_email,
-        to_email=body.email,
-        signer_name=body.name,
+        to_email=signer_email,
+        signer_name=signer_name,
         asset_name=asset.name,
         version_number=version.version_number,
         statement=statement,
@@ -196,8 +207,8 @@ def sign_off_asset(
         send_task_safe(
             send_sign_off_team_email,
             to_email=member.email,
-            signer_name=body.name,
-            signer_email=body.email,
+            signer_name=signer_name,
+            signer_email=signer_email,
             asset_name=asset.name,
             version_number=version.version_number,
             signed_at=signed_at,

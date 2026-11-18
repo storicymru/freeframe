@@ -397,6 +397,11 @@ def validate_share_link_endpoint(
     """
     link = validate_share_link(db, token)
 
+    # A client-portal link answers only its project's clients and members.
+    if getattr(link, "is_portal", False) is True and current_user:
+        from ..services.portal import require_portal_access
+        require_portal_access(db, link, current_user)
+
     # Check secure visibility — requires authenticated user. This is the one
     # place that answers with requires_auth instead of raising, so the client
     # can render a sign-in prompt; every other endpoint enforces the same rule
@@ -1094,6 +1099,8 @@ def list_project_share_links(
         .outerjoin(activity_stats, ShareLink.id == activity_stats.c.share_link_id)
         .filter(
             ShareLink.project_id == project_id,
+            # The client portal's own link is not one the team made or manages.
+            ShareLink.is_portal.is_(False),
             ShareLink.deleted_at.is_(None),
         )
     )
@@ -1347,6 +1354,10 @@ def get_folder_share_assets(
     matching `/share/{token}/stream/{asset_id}`.
     """
     link = validate_share_link_with_session(db, token, share_session=share_session, current_user=current_user)
+    # The portal lists a client's assets itself (GET /portal), filtered to what
+    # they may see. This listing knows nothing of that filter.
+    if getattr(link, "is_portal", False) is True:
+        raise HTTPException(status_code=403, detail="Not available on a client portal link")
 
     is_project_share = link.project_id is not None
     if not link.folder_id and not is_project_share:

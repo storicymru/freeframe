@@ -55,6 +55,8 @@ class SignOffRecord(BaseModel):
     asset_name: str
     signer_name: str
     signer_email: str
+    # Set when they signed while signed in to the client portal.
+    signer_user_id: Optional[uuid.UUID] = None
     statement: str
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
