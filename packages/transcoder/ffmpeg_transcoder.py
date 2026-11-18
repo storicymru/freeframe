@@ -2077,7 +2077,7 @@ class FFmpegTranscoder(BaseTranscoder):
             # looks for, and because "DV is always 10-bit" is a fact about the
             # format rather than about this code.
             copy_source = (
-                source_copy_enabled()
+                (source_copy_enabled() or job.copy_only)
                 and len(qualities) == 1
                 and rung_is_source_size(
                     rung_box(scale_targets[qualities[0]], source_width, source_height),
@@ -2109,6 +2109,14 @@ class FFmpegTranscoder(BaseTranscoder):
                     f"({_vid_stream.get('codec_name')}/{_vid_stream.get('pix_fmt')}) and the "
                     f"ladder asks for {source_width}x{source_height}: remuxing, not re-encoding",
                     flush=True,
+                )
+
+            if job.copy_only and not copy_source:
+                # The caller wanted a remux or nothing, and has its own
+                # transcode to fall back on. Nothing has been written.
+                return TranscodeResult(
+                    success=False, copy_declined=True,
+                    error="the source cannot be stream-copied",
                 )
 
             primary_backend = "copy" if copy_source else get_backend()
@@ -2546,6 +2554,13 @@ class FFmpegTranscoder(BaseTranscoder):
                     recognised = _is_hw_runtime_failure(str(exc))
                     if is_last or not (remux or cpu_decode_tier or recognised):
                         raise
+                    if remux and job.copy_only:
+                        # A copy-only job never degrades to the encoder: that
+                        # is the slow path its caller is about to take anyway.
+                        return TranscodeResult(
+                            success=False, copy_declined=True,
+                            error="the source could not be remuxed",
+                        )
                     next_index = attempt_index + 1
                     if (attempt_backend in _CPU_DECODE_UPLOAD and gpu_decode
                             and not _is_gpu_decode_failure(str(exc))):

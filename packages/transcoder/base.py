@@ -36,6 +36,12 @@ class TranscodeJob:
     # Defaults to False, which is the safe default for a caller that does not
     # know: it refuses, and a caller with no retries would then see the error.
     final_attempt: bool = False
+    # Stream-copy or nothing. Asks for the remux a copyable source gets under
+    # TRANSCODER_SOURCE_COPY whatever that setting says, and, where the source
+    # cannot be copied, returns `copy_declined` straight away instead of
+    # encoding. For a caller that wants a watchable rendition in seconds and
+    # has a full transcode of its own to fall back on (the quick preview).
+    copy_only: bool = False
 
 @dataclass
 class TranscodeResult:
@@ -44,6 +50,9 @@ class TranscodeResult:
     # failure: the file is fine, it just is not video, so a caller can re-route
     # it to the audio pipeline instead of surfacing an error.
     no_video_stream: bool = False
+    # A `copy_only` job whose source could not be stream-copied. Nothing was
+    # written and nothing is wrong with the file.
+    copy_declined: bool = False
     hls_prefix: Optional[str] = None
     # One MP4 holding the whole of the best rendition, for download. The ladder
     # itself is segments, which cannot be handed to anyone as "the video", so

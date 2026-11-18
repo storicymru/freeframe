@@ -93,6 +93,12 @@ class Settings(BaseSettings):
     # ask for more than the source has: a ladder left empty that way builds its
     # smallest rung at the source's own size.
     transcoder_qualities: str = "1080p,720p,360p"
+    # Publish something watchable before the full ladder is built: a stream
+    # copy of the upload where it is already browser-safe H.264 at 1080p or
+    # under (seconds to minutes), otherwise a single 720p rendition. The version
+    # becomes `ready` on that, and the configured ladder replaces it when it is
+    # done. Off by default: the ladder alone, as before.
+    transcoder_quick_preview: bool = False
 
     # Maximum size (bytes) for a single uploaded file. 0 = unlimited (no per-file cap).
     # Note: S3 multipart still caps effective size at ~10,000 parts x chunk size.

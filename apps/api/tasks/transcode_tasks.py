@@ -50,9 +50,12 @@ def process_asset(self, asset_id: str, version_id: str):
             db.commit()
             return
 
-        # Reset to processing status before each attempt
-        version.processing_status = ProcessingStatus.processing
-        db.commit()
+        # Reset to processing status before each attempt. Not once a quick
+        # preview is published: the version is watchable on it, and a retry of
+        # the full ladder behind it is no reason to take that away.
+        if not _has_preview(media_file):
+            version.processing_status = ProcessingStatus.processing
+            db.commit()
         # The timing report. Its own session, never raises.
         from ..services.processing_log import record_processing_finished, record_processing_started
         record_processing_started(version_id)
@@ -93,9 +96,18 @@ def process_asset(self, asset_id: str, version_id: str):
             def _record_failure() -> None:
                 from packages.transcoder.redact import redact_presigned_urls
 
+                record_processing_finished(version_id, ok=False, error=redact_presigned_urls(str(exc)))
+                if _has_preview(media_file):
+                    # The full ladder never arrived, but the quick preview is
+                    # published and plays. Leave the version on it rather than
+                    # replace something watchable with "failed".
+                    log.error(
+                        "version %s: the full ladder failed and it stays on its quick preview: %s",
+                        version_id, redact_presigned_urls(str(exc)),
+                    )
+                    return
                 version.processing_status = ProcessingStatus.failed
                 db.commit()
-                record_processing_finished(version_id, ok=False, error=redact_presigned_urls(str(exc)))
                 # Every subscriber to the project's stream receives this, not
                 # only the uploader, so never let a presigned URL through.
                 _publish_event(str(asset.project_id), "transcode_failed", {
@@ -131,6 +143,120 @@ def process_asset(self, asset_id: str, version_id: str):
 
     finally:
         db.close()
+
+
+PREVIEW_SUFFIX = "/preview"
+# Below this an upload processes quickly enough that a preview pass would only
+# add work.
+PREVIEW_MIN_BYTES = 200 * 1024 * 1024
+# How long a replaced preview is kept, for anyone still playing it.
+PREVIEW_KEEP_SECONDS = 45 * 60
+
+
+def _has_preview(media_file) -> bool:
+    """Whether this file is currently published on its quick preview."""
+    key = getattr(media_file, "s3_key_processed", None)
+    return isinstance(key, str) and key.endswith(PREVIEW_SUFFIX)
+
+
+def _store_result(media_file, result, *, download: bool = True) -> None:
+    """Point the MediaFile at what a transcode produced."""
+    media_file.s3_key_processed = result.hls_prefix
+    # None when the remux failed. Recorded either way so a re-run of a version
+    # that once had a download rung and now does not stops advertising it.
+    media_file.s3_key_download = result.mp4_key if download else None
+    if result.thumbnail_keys:
+        media_file.s3_key_thumbnail = result.thumbnail_keys[0]
+    if result.duration_seconds:
+        media_file.duration_seconds = result.duration_seconds
+    if result.width:
+        media_file.width = result.width
+    if result.height:
+        media_file.height = result.height
+    if result.fps:
+        media_file.fps = result.fps
+
+
+def _publish_quick_preview(db, asset, version, media_file, transcoder, output_prefix) -> bool:
+    """Make the video watchable before the full ladder is built.
+
+    A stream copy of the upload where that is possible (browser-safe H.264 at
+    1080p or under: no encoding, so it takes as long as reading the file),
+    otherwise one 720p rendition. The version is marked `ready` on it and the
+    ladder that follows replaces it.
+
+    Never raises and never leaves the version worse off: whatever goes wrong
+    here, the caller carries on to the ordinary transcode as if this had not
+    been tried.
+    """
+    from packages.transcoder.base import TranscodeJob
+    from ..services.processing_log import record_preview_ready
+    from ..services.s3_service import delete_prefix
+
+    prefix = f"{output_prefix}{PREVIEW_SUFFIX}"
+
+    def _job(**kwargs):
+        return TranscodeJob(
+            media_id=str(asset.id), version_id=str(version.id),
+            input_s3_key=media_file.s3_key_raw, output_s3_prefix=prefix, **kwargs,
+        )
+
+    try:
+        kind = "copy"
+        # "1080p" is clamped to a smaller source, so this is "the source's own
+        # size" for anything up to 1080p, and declined for anything larger.
+        result = _run_async(transcoder.transcode(_job(qualities=["1080p"], copy_only=True)))
+        if result.no_video_stream:
+            return False
+        if not result.success:
+            kind = "720p"
+            result = _run_async(transcoder.transcode(_job(qualities=["720p"])))
+        if not result.success or result.no_video_stream or not result.hls_prefix:
+            log.info("version %s: no quick preview (%s); building the ladder", version.id, result.error)
+            try:
+                delete_prefix(prefix + "/")
+            except Exception:  # noqa: BLE001
+                pass
+            return False
+        _store_result(media_file, result, download=False)
+        version.processing_status = ProcessingStatus.ready
+        db.commit()
+    except Exception:  # noqa: BLE001 - the preview is a bonus, never a failure
+        log.warning("version %s: quick preview failed; building the ladder", version.id, exc_info=True)
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+    record_preview_ready(version.id, kind)
+    log.info("version %s: watchable on a quick preview (%s)", version.id, kind)
+    _publish_event(str(asset.project_id), "transcode_complete", {
+        "asset_id": str(asset.id), "version_id": str(version.id), "preview": True,
+    })
+    return True
+
+
+@celery_app.task(name="apps.api.tasks.transcode_tasks.delete_preview_outputs")
+def delete_preview_outputs(prefix: str):
+    """Remove a quick preview once the full ladder has replaced it.
+
+    Runs a while after the swap so anyone still playing the preview finishes on
+    it. Refuses anything that is not a preview folder, and anything a MediaFile
+    still points at (the ladder failed and the version stayed on its preview).
+    """
+    from ..services.s3_service import delete_prefix
+
+    if not (isinstance(prefix, str) and prefix.startswith("processed/") and prefix.endswith(PREVIEW_SUFFIX)):
+        return
+    db = SessionLocal()
+    try:
+        in_use = db.query(MediaFile).filter(MediaFile.s3_key_processed == prefix).first()
+        if in_use is not None:
+            return
+    finally:
+        db.close()
+    delete_prefix(prefix + "/")
 
 
 def _process_video(
@@ -177,6 +303,17 @@ def _process_video(
         progress_cb=_on_progress,
         final_attempt=final_attempt,
     )
+    # A quick watchable version first, where the instance asks for one and the
+    # upload is big enough to be worth it. A retry finds the preview already
+    # published and goes straight to the ladder.
+    had_preview = _has_preview(media_file)
+    if (
+        settings.transcoder_quick_preview is True
+        and not had_preview
+        and (getattr(media_file, "file_size_bytes", None) or 0) >= PREVIEW_MIN_BYTES
+    ):
+        had_preview = _publish_quick_preview(db, asset, version, media_file, transcoder, output_prefix)
+
     result = _run_async(transcoder.transcode(job))
 
     if result.no_video_stream:
@@ -197,21 +334,17 @@ def _process_video(
     if not result.success:
         raise RuntimeError(f"Transcode failed: {result.error}")
 
-    media_file.s3_key_processed = result.hls_prefix
-    # None when the remux failed. Recorded either way so a re-run of a version
-    # that once had a download rung and now does not stops advertising it.
-    media_file.s3_key_download = result.mp4_key
-    if result.thumbnail_keys:
-        media_file.s3_key_thumbnail = result.thumbnail_keys[0]
-    if result.duration_seconds:
-        media_file.duration_seconds = result.duration_seconds
-    if result.width:
-        media_file.width = result.width
-    if result.height:
-        media_file.height = result.height
-    if result.fps:
-        media_file.fps = result.fps
+    preview_prefix = media_file.s3_key_processed if had_preview else None
+    _store_result(media_file, result)
     db.flush()
+    if preview_prefix and preview_prefix != result.hls_prefix:
+        # The ladder is in place. Clear the preview away later, not now: someone
+        # may be watching it. If this never runs, the retention GC reclaims it
+        # with the rest of the version's folder.
+        try:
+            delete_preview_outputs.apply_async(args=[preview_prefix], countdown=PREVIEW_KEEP_SECONDS)
+        except Exception:  # noqa: BLE001
+            log.warning("could not schedule removal of %s", preview_prefix, exc_info=True)
 
 
 def _process_audio(db, asset, version, media_file, s3, output_prefix):

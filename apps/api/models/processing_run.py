@@ -39,6 +39,10 @@ class ProcessingRun(Base):
     upload_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     processing_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     processing_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # With the quick preview on: when the video first became watchable, and
+    # how ("copy" of the upload, or a "720p" encode). Empty without one.
+    preview_ready_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    preview_kind: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     # "ready" or "failed" once processing has ended; empty while it runs.
     outcome: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

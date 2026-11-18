@@ -91,6 +91,15 @@ def record_processing_started(version_id) -> None:
     _write(version_id, change)
 
 
+def record_preview_ready(version_id, kind: str) -> None:
+    """The quick preview is published: the video is watchable from here."""
+    def change(db, run):
+        if run.preview_ready_at is None:
+            run.preview_ready_at = datetime.now(timezone.utc)
+            run.preview_kind = kind
+    _write(version_id, change)
+
+
 def record_processing_finished(version_id, ok: bool, error: Optional[str] = None) -> None:
     """Processing ended, well or badly. Picks up what the transcode learned
     about the file (length, frame size) while it is there."""
@@ -140,6 +149,10 @@ def describe(run: ProcessingRun) -> dict:
         "outcome": run.outcome,
         "attempts": run.attempts,
         "error": run.error,
+        "preview_ready_at": run.preview_ready_at,
+        "preview_kind": run.preview_kind,
+        # From the worker picking it up to the video being watchable.
+        "preview_seconds": _seconds(run.processing_started_at, run.preview_ready_at),
         "upload_seconds": upload,
         "queued_seconds": queued,
         "processing_seconds": processing,
