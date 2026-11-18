@@ -156,7 +156,7 @@ class EmailService:
             <p><strong>{inviter_name}</strong> has invited you to join <strong>{org_name}</strong>.</p>
             <p>
                 <a href="{invite_link}" 
-                   style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; 
+                   style="display: inline-block; padding: 12px 24px; background-color: #CB2C30; 
                           color: white; text-decoration: none; border-radius: 6px;">
                     Accept Invitation
                 </a>
@@ -185,12 +185,12 @@ class EmailService:
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <h2>New Comment</h2>
             <p><strong>{commenter_name}</strong> commented on <strong>{asset_name}</strong>:</p>
-            <blockquote style="border-left: 3px solid #4F46E5; padding-left: 12px; color: #555;">
+            <blockquote style="border-left: 3px solid #CB2C30; padding-left: 12px; color: #555;">
                 {comment_preview}
             </blockquote>
             <p>
                 <a href="{asset_link}" 
-                   style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; 
+                   style="display: inline-block; padding: 12px 24px; background-color: #CB2C30; 
                           color: white; text-decoration: none; border-radius: 6px;">
                     View Comment
                 </a>
@@ -216,12 +216,12 @@ class EmailService:
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <h2>You were mentioned</h2>
             <p><strong>{mentioner_name}</strong> mentioned you on <strong>{asset_name}</strong>:</p>
-            <blockquote style="border-left: 3px solid #4F46E5; padding-left: 12px; color: #555;">
+            <blockquote style="border-left: 3px solid #CB2C30; padding-left: 12px; color: #555;">
                 {comment_preview}
             </blockquote>
             <p>
                 <a href="{asset_link}" 
-                   style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; 
+                   style="display: inline-block; padding: 12px 24px; background-color: #CB2C30; 
                           color: white; text-decoration: none; border-radius: 6px;">
                     View Comment
                 </a>
@@ -251,7 +251,7 @@ class EmailService:
             {"<p><strong>Due date:</strong> " + due_date + "</p>" if due_date else ""}
             <p>
                 <a href="{asset_link}" 
-                   style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; 
+                   style="display: inline-block; padding: 12px 24px; background-color: #CB2C30; 
                           color: white; text-decoration: none; border-radius: 6px;">
                     Review Asset
                 </a>
@@ -282,7 +282,7 @@ class EmailService:
             {"<p><strong>Note:</strong> " + note + "</p>" if note else ""}
             <p>
                 <a href="{asset_link}" 
-                   style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; 
+                   style="display: inline-block; padding: 12px 24px; background-color: #CB2C30; 
                           color: white; text-decoration: none; border-radius: 6px;">
                     View Asset
                 </a>

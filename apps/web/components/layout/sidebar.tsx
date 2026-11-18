@@ -126,7 +126,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             />
           )}
           {!collapsed && (
-            <span className="text-sm font-semibold text-text-primary tracking-tight truncate">
+            <span className="font-display text-sm text-text-primary truncate">
               {orgName}
             </span>
           )}

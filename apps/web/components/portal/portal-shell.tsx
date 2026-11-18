@@ -34,7 +34,7 @@ export function PortalShell({ viewerName, children }: { viewerName?: string; chi
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-3 min-w-0">
             <ShareBrandMark theme="dark" />
-            <span className="hidden sm:inline text-sm text-text-tertiary truncate">{orgName} client portal</span>
+            <span className="hidden sm:inline font-display text-sm text-text-secondary truncate">{orgName}</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {viewerName && <span className="hidden sm:inline text-sm text-text-secondary truncate max-w-[14rem]">{viewerName}</span>}

@@ -240,7 +240,7 @@ export function LoginScreenMock({ orgName, logoUrl, onLogoError }: MockProps) {
       </div>
 
       <p className="relative mt-8 text-2xs text-text-tertiary">
-        Collaborative media review &amp; approval
+        Video review and sign-off
       </p>
     </div>
   )

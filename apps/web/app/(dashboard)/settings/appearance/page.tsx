@@ -60,14 +60,14 @@ export default function AppearancePage() {
                 <div
                   className={cn(
                     'w-full aspect-[4/3] rounded-lg border overflow-hidden flex flex-col',
-                    t.value === 'dark' && 'bg-[#0d0d10] border-[#2e2e3a]',
+                    t.value === 'dark' && 'bg-[#0b1322] border-[#263c5e]',
                     t.value === 'light' && 'bg-white border-[#e0e0e6]',
                     t.value === 'system' && 'border-[#2e2e3a]',
                   )}
                 >
                   {t.value === 'system' ? (
                     <div className="flex-1 flex">
-                      <div className="flex-1 bg-[#0d0d10]" />
+                      <div className="flex-1 bg-[#0b1322]" />
                       <div className="flex-1 bg-white" />
                     </div>
                   ) : (

@@ -17,6 +17,7 @@ vi.mock('@/lib/branding-server', () => ({
 }))
 vi.mock('next/font/google', () => ({
   DM_Sans: () => ({ variable: 'font-dm-sans', className: 'font-dm-sans' }),
+  Outfit: () => ({ variable: 'font-outfit', className: 'font-outfit' }),
 }))
 
 import RootLayout, { dynamic } from '../layout'

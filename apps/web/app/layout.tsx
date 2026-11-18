@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans } from "next/font/google";
+import { DM_Sans, Outfit } from "next/font/google";
 import { ToastProvider } from "@/components/shared/toast";
 import { ThemeInitializer } from "@/components/shared/theme-initializer";
 import { BrandingHead } from "@/components/shared/branding-head";
@@ -25,6 +25,15 @@ const dmSans = DM_Sans({
   preload: true,
 });
 
+// Headings and the wordmark: Outfit ExtraBold, the typeface of the Cylch mark.
+const outfit = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
+  weight: ["700", "800"],
+  preload: true,
+});
+
 // The tab title comes from the instance's own name, resolved on the server, so
 // a white-labelled deployment never shows "FreeFrame" in the tab first and the
 // org name a round trip later. `icons` is deliberately NOT set here: Next emits
@@ -36,7 +45,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const branding = await getServerBranding();
   return {
     title: branding?.org_name || "FreeFrame",
-    description: "Collaborative media review and approval platform",
+    description: "Video review and sign-off",
   };
 }
 
@@ -90,7 +99,7 @@ export default async function RootLayout({
         <link rel="shortcut icon" href={favicon} data-ff-branding="" />
         <link rel="apple-touch-icon" href={appleIcon} data-ff-branding="" />
       </head>
-      <body className={`${dmSans.variable} font-sans antialiased`}>
+      <body className={`${dmSans.variable} ${outfit.variable} font-sans antialiased`}>
         <ThemeInitializer />
         <BrandingProvider initial={branding}>
           {/* Renders nothing; it keeps the live document in step with branding

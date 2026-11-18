@@ -229,8 +229,17 @@ export function ReviewProvider({
         // this callback stays stable; a dedicated effect re-runs it when the version changes).
         const versionId = useReviewStore.getState().currentVersion?.id;
         const vParam = versionId ? `&version_id=${versionId}` : "";
+        // A `secure` link and the client portal's link answer only a signed-in
+        // caller. Every other share request here sends the token; this one did
+        // not, so on those links comments could be posted but never read back.
+        const headers: Record<string, string> = {};
+        if (typeof window !== "undefined") {
+          const t = localStorage.getItem("ff_access_token");
+          if (t) headers["Authorization"] = `Bearer ${t}`;
+        }
         const res = await fetch(
           `${API_URL}/share/${shareToken}/comments?asset_id=${assetId}${vParam}${shareSessionParam}`,
+          { headers },
         );
         if (res.ok) {
           const json = await res.json();
