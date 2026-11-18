@@ -238,6 +238,17 @@ enum MarkerBuilder {
             inLibrary.addAttribute(XMLNode.attribute(withName: "location", stringValue: library.absoluteString) as! XMLNode)
             inLibrary.addChild(inEvent)
             parent.insertChild(inLibrary, at: index)
+
+            // The library's name in the file settles the event; this option is
+            // what stops Final Cut asking which library to import into.
+            if parent.elements(forName: "import-options").isEmpty {
+                let option = XMLElement(name: "option")
+                option.addAttribute(XMLNode.attribute(withName: "key", stringValue: "library location") as! XMLNode)
+                option.addAttribute(XMLNode.attribute(withName: "value", stringValue: library.absoluteString) as! XMLNode)
+                let options = XMLElement(name: "import-options")
+                options.addChild(option)
+                parent.insertChild(options, at: 0)
+            }
         }
 
         document.isStandalone = false
