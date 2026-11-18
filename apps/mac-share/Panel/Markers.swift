@@ -76,6 +76,7 @@ enum MarkerBuilder {
     ]
 
     static func addMarkers(to fcpxml: String, comments: [MarkerComment], nameSuffix: String = " – Adborth comments",
+                           clipSuffix: String = " – Adborth markers",
                            library: URL? = nil, event: String? = nil) throws -> MarkerResult {
         let document = try XMLDocument(xmlString: fcpxml, options: [.nodePreserveWhitespace])
         guard let project = try document.nodes(forXPath: "//project").first as? XMLElement,
@@ -140,8 +141,78 @@ enum MarkerBuilder {
             placed += 1
         }
 
+        let original = project.attribute(forName: "name")?.stringValue ?? "Project"
+
+        // A second way in: a compound clip of running timecode, as long as the
+        // project, carrying every comment as a marker. Laid over any cut of the
+        // film, its markers line up by time, whatever has changed underneath.
+        var markerClip: XMLElement?
+        if let resources = try document.nodes(forXPath: "/fcpxml/resources").first as? XMLElement,
+           let length = Rational(sequence.attribute(forName: "duration")?.stringValue), length > .zero {
+            func attribute(_ name: String, _ value: String) -> XMLNode { XMLNode.attribute(withName: name, stringValue: value) as! XMLNode }
+            let taken = Set(((try? document.nodes(forXPath: "//@id")) ?? []).compactMap(\.stringValue))
+            var number = 1
+            func freshID() -> String {
+                while taken.contains("adborth\(number)") { number += 1 }
+                defer { number += 1 }
+                return "adborth\(number)"
+            }
+            let effectID = freshID(), mediaID = freshID()
+            let clipName = original + clipSuffix
+
+            let effect = XMLElement(name: "effect")
+            effect.addAttribute(attribute("id", effectID))
+            effect.addAttribute(attribute("name", "Timecode"))
+            effect.addAttribute(attribute("uid", ".../Generators.localized/Elements.localized/Timecode.localized/Timecode.motn"))
+            resources.addChild(effect)
+
+            let timecode = XMLElement(name: "video")
+            timecode.addAttribute(attribute("ref", effectID))
+            timecode.addAttribute(attribute("offset", start.text))
+            timecode.addAttribute(attribute("name", "Timecode"))
+            timecode.addAttribute(attribute("start", start.text))
+            timecode.addAttribute(attribute("duration", length.text))
+            let inner = XMLElement(name: "spine")
+            inner.addChild(timecode)
+            let innerSequence = XMLElement(name: "sequence")
+            for name in ["format", "duration", "tcStart", "tcFormat", "audioLayout", "audioRate"] {
+                if let value = sequence.attribute(forName: name)?.stringValue { innerSequence.addAttribute(attribute(name, value)) }
+            }
+            innerSequence.addChild(inner)
+            let media = XMLElement(name: "media")
+            media.addAttribute(attribute("id", mediaID))
+            media.addAttribute(attribute("name", clipName))
+            media.addChild(innerSequence)
+            resources.addChild(media)
+
+            let clip = XMLElement(name: "ref-clip")
+            clip.addAttribute(attribute("ref", mediaID))
+            clip.addAttribute(attribute("name", clipName))
+            clip.addAttribute(attribute("start", start.text))
+            clip.addAttribute(attribute("duration", length.text))
+            let last = start + length - frame
+            for comment in comments.sorted(by: { $0.seconds < $1.seconds }) {
+                let frames = Int64((max(0, comment.seconds) / frame.seconds + 0.0001).rounded(.down))
+                var moment = start + frame * frames
+                if last < moment { moment = last }
+                let marker = XMLElement(name: "marker")
+                marker.addAttribute(attribute("start", moment.text))
+                marker.addAttribute(attribute("duration", frame.text))
+                marker.addAttribute(attribute("value", comment.title.split(whereSeparator: \.isNewline).joined(separator: " ")))
+                marker.addAttribute(attribute("completed", comment.done ? "1" : "0"))
+                if !comment.note.isEmpty {
+                    marker.addAttribute(attribute("note", comment.note.split(whereSeparator: \.isNewline).joined(separator: "  •  ")))
+                }
+                clip.addChild(marker)
+            }
+            if let parent = project.parent as? XMLElement {
+                parent.insertChild(clip, at: project.index + 1)
+                markerClip = clip
+            }
+        }
+
         // A copy beside the original, never over it.
-        let name = (project.attribute(forName: "name")?.stringValue ?? "Project") + nameSuffix
+        let name = original + nameSuffix
         project.removeAttribute(forName: "name")
         project.addAttribute(XMLNode.attribute(withName: "name", stringValue: name) as! XMLNode)
         project.removeAttribute(forName: "uid")
@@ -155,6 +226,7 @@ enum MarkerBuilder {
             let inEvent = XMLElement(name: "event")
             inEvent.addAttribute(XMLNode.attribute(withName: "name", stringValue: event ?? "Adborth") as! XMLNode)
             inEvent.addChild(project)
+            if let markerClip { markerClip.detach(); inEvent.addChild(markerClip) }
             let inLibrary = XMLElement(name: "library")
             inLibrary.addAttribute(XMLNode.attribute(withName: "location", stringValue: library.absoluteString) as! XMLNode)
             inLibrary.addChild(inEvent)

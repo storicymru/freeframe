@@ -358,7 +358,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 PanelLog.write("wrote \(file.path): \(result.placed) markers")
                 self.handToFinalCut(file)
                 let untimed = answer.comments.count - timed.count
-                self.note.stringValue = "\(result.placed) markers on “\(result.projectName)”" + (untimed > 0 ? " (\(untimed) untimed left out)" : "")
+                self.note.stringValue = "\(result.placed) markers on “\(result.projectName)”, plus a marker clip" + (untimed > 0 ? " (\(untimed) untimed left out)" : "")
             } catch {
                 PanelLog.write("markers failed: \(error)")
                 let text = "\(error)".contains("signed-out") ? "Sign in to Adborth in this panel first" : error.localizedDescription
