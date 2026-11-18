@@ -8,7 +8,7 @@ from typing import Optional
 from ..database import get_db
 from ..middleware.auth import get_current_user
 from ..models.user import User
-from ..models.asset import Asset, AssetVersion, MediaFile, AssetType, FileType, ProcessingStatus
+from ..models.asset import Asset, AssetStatus, AssetVersion, MediaFile, AssetType, FileType, ProcessingStatus
 from ..models.project import Project, ProjectMember, ProjectRole
 from ..models.share import AssetShare
 from ..models.activity import Mention, Notification, NotificationType
@@ -28,6 +28,8 @@ from ..schemas.upload import (
 )
 from ..services.storage import choose_part_size, upload_guard_error
 from ..services.versions import next_version_number
+from ..services.sign_off import active_sign_off
+from ..services.portal import notify_clients_ready_for_review
 from ..services.s3_service import create_multipart_upload
 from .upload import storage_initiate_error
 
@@ -296,10 +298,25 @@ def update_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     require_project_role(db, asset.project_id, current_user, ProjectRole.editor)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    previous_status = asset.status
+    new_status = updates.get("status", previous_status)
+    # A signed-off asset stays delivered (or archived) until it is reopened:
+    # sending it back to draft or review would take the client's download away
+    # behind the record of their approval.
+    if (
+        new_status != previous_status
+        and new_status not in (AssetStatus.approved, AssetStatus.archived)
+        and active_sign_off(db, asset.id) is not None
+    ):
+        raise HTTPException(status_code=409, detail="This has been signed off. Reopen it before changing its status.")
+    for field, value in updates.items():
         setattr(asset, field, value)
     db.commit()
     db.refresh(asset)
+    # Putting a video in front of the client tells the client.
+    if new_status == AssetStatus.in_review and previous_status != AssetStatus.in_review:
+        notify_clients_ready_for_review(db, asset, current_user)
     return _build_asset_response(asset, db)
 
 

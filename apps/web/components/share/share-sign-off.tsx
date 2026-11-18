@@ -10,6 +10,7 @@
  */
 import * as React from 'react'
 import { CheckCircle2, Loader2, PenLine } from 'lucide-react'
+import { shareAuthHeaders } from './share-download'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -36,7 +37,7 @@ export async function fetchShareSignOff(
   token: string, assetId: string, shareSession?: string | null, versionId?: string | null,
 ): Promise<ShareSignOffStatus | null> {
   try {
-    const response = await fetch(`${API_URL}/share/${token}/sign-off/${assetId}${query(shareSession, versionId)}`)
+    const response = await fetch(`${API_URL}/share/${token}/sign-off/${assetId}${query(shareSession, versionId)}`, { headers: shareAuthHeaders() })
     if (!response.ok) return null
     return (await response.json()) as ShareSignOffStatus
   } catch {
@@ -54,7 +55,7 @@ export async function submitShareSignOff(
   try {
     response = await fetch(`${API_URL}/share/${token}/sign-off/${assetId}${query(shareSession)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...shareAuthHeaders() },
       body: JSON.stringify(body),
     })
   } catch {

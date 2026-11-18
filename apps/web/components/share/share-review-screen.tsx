@@ -34,7 +34,7 @@ function hasIdentity(): boolean {
 }
 
 export function ShareReviewScreen({
-  token, shareSession, assetId, assetName, permission, allowDownload, showVersions, theme = 'dark', projectLogoUrl, onBack,
+  token, shareSession, assetId, assetName, permission, allowDownload, showVersions, theme = 'dark', projectLogoUrl, onBack, viewerName, viewerEmail,
 }: {
   token: string; shareSession?: string | null; assetId: string; assetName: string; permission: SharePermission; allowDownload: boolean; showVersions: boolean
   /** The link's theme, which the page renders in; picks the logo variant. Dark, the share pages' default, when not given. */
@@ -42,6 +42,9 @@ export function ShareReviewScreen({
   /** The project's logo from the link's branding, shown ahead of the instance's. */
   projectLogoUrl?: string | null
   onBack?: () => void
+  /** A signed-in viewer (the client portal): fills in the sign-off form. */
+  viewerName?: string
+  viewerEmail?: string
 }) {
   const [ReviewProvider, setProvider] = React.useState<any>(null)
   const [VideoPlayer, setVideoPlayer] = React.useState<any>(null)
@@ -90,6 +93,8 @@ export function ShareReviewScreen({
         theme={theme}
         projectLogoUrl={projectLogoUrl}
         onBack={onBack}
+        viewerName={viewerName}
+        viewerEmail={viewerEmail}
         VideoPlayer={VideoPlayer}
         ImageViewer={ImageViewer}
         AudioPlayer={AudioPlayer}
@@ -102,7 +107,7 @@ export function ShareReviewScreen({
 }
 
 function ShareReviewInner({
-  token, shareSession, assetName, permission, allowDownload, showVersions, theme, projectLogoUrl, onBack,
+  token, shareSession, assetName, permission, allowDownload, showVersions, theme, projectLogoUrl, onBack, viewerName, viewerEmail,
   VideoPlayer, ImageViewer, AudioPlayer, CommentPanel, CommentInput, VersionSwitcher,
 }: any) {
   const { asset, versions, isLoading, comments, refetchComments, addComment, togglePlayback } = useReview()
@@ -427,8 +432,8 @@ function ShareReviewInner({
         <SignOffDialog
           assetName={assetName}
           status={signOff}
-          defaultName={guestIdentity?.name}
-          defaultEmail={guestIdentity?.email}
+          defaultName={viewerName ?? guestIdentity?.name}
+          defaultEmail={viewerEmail ?? guestIdentity?.email}
           onCancel={() => setShowSignOff(false)}
           onSubmit={async (name, email) => {
             const next = await submitShareSignOff(

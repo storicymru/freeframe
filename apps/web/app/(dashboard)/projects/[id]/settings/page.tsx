@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import * as Tabs from '@radix-ui/react-tabs'
-import { AlertTriangle, ChevronLeft, Lock, Settings2, Users } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, Contact, Lock, Settings2, Users } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,11 +16,13 @@ import { useBranding } from '@/components/shared/branding-provider'
 import { ProjectGeneralTab } from '@/components/projects/settings/general-tab'
 import { ProjectPeopleTab } from '@/components/projects/settings/people-tab'
 import { ProjectDangerTab } from '@/components/projects/settings/danger-tab'
+import { ProjectClientsTab } from '@/components/projects/settings/clients-tab'
 import type { Project, ProjectMember } from '@/types'
 
 const TABS = [
   { value: 'general', label: 'General', icon: Settings2 },
   { value: 'people', label: 'People', icon: Users },
+  { value: 'clients', label: 'Clients', icon: Contact },
   { value: 'danger', label: 'Danger', icon: AlertTriangle },
 ] as const
 
@@ -143,6 +145,9 @@ export default function ProjectSettingsPage() {
         </Tabs.Content>
         <Tabs.Content value="people" className={cn('pt-6', clearBadge)}>
           <ProjectPeopleTab projectId={projectId} />
+        </Tabs.Content>
+        <Tabs.Content value="clients" className={cn('pt-6', clearBadge)}>
+          <ProjectClientsTab projectId={projectId} />
         </Tabs.Content>
         <Tabs.Content value="danger" className={cn('pt-6', clearBadge)}>
           <ProjectDangerTab projectId={projectId} projectName={project.name} />

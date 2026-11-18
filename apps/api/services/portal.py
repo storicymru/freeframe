@@ -104,3 +104,43 @@ def get_or_create_portal_link(db: Session, project: Project, created_by: uuid.UU
     db.add(link)
     db.flush()
     return link
+
+
+def notify_clients_ready_for_review(db: Session, asset: Asset, sender: User) -> int:
+    """Email the project's clients that a video is waiting for them in the
+    portal. Returns how many were told. Never raises: a mail problem must not
+    undo the status change that triggered it."""
+    from ..config import settings
+    from ..tasks.celery_app import send_task_safe
+    from ..tasks.email_tasks import send_client_review_ready_email
+
+    try:
+        clients = (
+            db.query(User)
+            .join(ProjectClient, ProjectClient.user_id == User.id)
+            .filter(
+                ProjectClient.project_id == asset.project_id,
+                User.deleted_at.is_(None),
+                User.is_client.is_(True),
+            )
+            .all()
+        )
+        project = db.query(Project).filter(Project.id == asset.project_id).first()
+        told = 0
+        for client in clients:
+            if not isinstance(client, User) or getattr(client.status, "value", client.status) == "deactivated":
+                continue
+            send_task_safe(
+                send_client_review_ready_email,
+                to_email=client.email,
+                client_name=client.name,
+                sender_name=sender.name or "The team",
+                asset_name=asset.name,
+                project_name=project.name if project else "",
+                review_link=f"{settings.frontend_url}/portal/review/{asset.id}",
+            )
+            told += 1
+        return told
+    except Exception:
+        return 0
+

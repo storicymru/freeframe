@@ -399,3 +399,65 @@ def test_a_signed_in_client_signs_as_their_account_not_as_what_was_typed(
     client_mail = next(c.kwargs for c in mock_send.call_args_list if "share_url" in c.kwargs)
     assert client_mail["to_email"] == "carys@client.example"
     assert client_mail["share_url"].endswith("/portal")
+
+
+# ─────────────────────────────────── sending a video to the client
+
+def _update(client, auth_headers, asset_id, status):
+    return client.patch(f"/assets/{asset_id}", headers=auth_headers, json={"status": status})
+
+
+@patch("apps.api.routers.assets._build_asset_response", return_value={})
+@patch("apps.api.routers.assets.notify_clients_ready_for_review")
+@patch("apps.api.routers.assets.active_sign_off", return_value=None)
+@patch("apps.api.routers.assets.require_project_role")
+def test_marking_a_video_for_review_tells_the_clients_once(
+    mock_role, mock_active, mock_notify, mock_build, client, mock_db, auth_headers,
+):
+    asset = _asset(AssetStatus.draft)
+    mock_db.first.return_value = asset
+
+    _update(client, auth_headers, asset.id, "in_review")
+    assert asset.status == AssetStatus.in_review
+    assert mock_notify.call_count == 1
+
+    # Already in review: saving it again is not news.
+    _update(client, auth_headers, asset.id, "in_review")
+    assert mock_notify.call_count == 1
+
+
+@patch("apps.api.routers.assets.notify_clients_ready_for_review")
+@patch("apps.api.routers.assets.active_sign_off")
+@patch("apps.api.routers.assets.require_project_role")
+def test_a_signed_off_video_keeps_its_status_until_reopened(
+    mock_role, mock_active, mock_notify, client, mock_db, auth_headers,
+):
+    asset = _asset(AssetStatus.approved)
+    mock_db.first.return_value = asset
+    mock_active.return_value = SignOff(asset_id=asset.id)
+
+    for status in ("draft", "in_review"):
+        response = _update(client, auth_headers, asset.id, status)
+        assert response.status_code == 409, response.text
+    assert asset.status == AssetStatus.approved
+    mock_notify.assert_not_called()
+
+
+def test_the_review_email_goes_to_each_client_of_the_project():
+    asset = _asset(AssetStatus.in_review)
+    carys = User(id=uuid.uuid4(), email="carys@client.example", name="Carys Evans", is_client=True, status=UserStatus.active)
+    gone = User(id=uuid.uuid4(), email="old@client.example", name="Old Contact", is_client=True, status=UserStatus.deactivated)
+    db = MagicMock()
+    db.query.return_value.join.return_value.filter.return_value.all.return_value = [carys, gone]
+    project = MagicMock()
+    project.name = "Swansea Bay City Deal"
+    db.query.return_value.filter.return_value.first.return_value = project
+
+    with patch("apps.api.tasks.celery_app.send_task_safe") as mock_send:
+        told = rules.notify_clients_ready_for_review(db, asset, _user())
+
+    assert told == 1
+    sent = mock_send.call_args.kwargs
+    assert sent["to_email"] == "carys@client.example"
+    assert sent["asset_name"] == "Hero Spot"
+    assert sent["review_link"].endswith(f"/portal/review/{asset.id}")

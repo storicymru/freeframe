@@ -9,6 +9,20 @@ import type { DownloadOption } from '@/types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+/**
+ * The signed-in user's token, when there is one. A share link needs none, but
+ * a `secure` link and the client portal's link answer only a signed-in caller,
+ * and a download or sign-off sent without it was refused there.
+ */
+export function shareAuthHeaders(): Record<string, string> {
+  try {
+    const token = localStorage.getItem('ff_access_token')
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 export function triggerDownload(url: string) {
   // Let the server's Content-Disposition filename win — don't set `a.download`,
   // since it would strip the extension the backend appended.
@@ -33,7 +47,7 @@ export async function fetchDownloadUrl(
   if (rendition) sp += `&rendition=${encodeURIComponent(rendition)}`
   if (preferOriginal) sp += '&prefer_original=true'
   try {
-    const response = await fetch(`${API_URL}/share/${token}/stream/${assetId}?download=true${sp}`)
+    const response = await fetch(`${API_URL}/share/${token}/stream/${assetId}?download=true${sp}`, { headers: shareAuthHeaders() })
     if (!response.ok) return null
     const data = await response.json()
     return data?.url ?? null
@@ -55,7 +69,7 @@ export async function fetchShareDownloadOptions(
 ): Promise<DownloadOption[] | null> {
   const sp = shareSession ? `?share_session=${encodeURIComponent(shareSession)}` : ''
   try {
-    const response = await fetch(`${API_URL}/share/${token}/downloads/${assetId}${sp}`)
+    const response = await fetch(`${API_URL}/share/${token}/downloads/${assetId}${sp}`, { headers: shareAuthHeaders() })
     if (!response.ok) return null
     return (await response.json()) as DownloadOption[]
   } catch {

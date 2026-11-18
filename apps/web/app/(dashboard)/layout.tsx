@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { withBasePath } from "@/lib/base-path";
 import { useUploadStore } from "@/stores/upload-store";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -37,6 +38,13 @@ export default function DashboardLayout({
     fetchUser();
     fetchHistory();
   }, [fetchUser, fetchHistory]);
+
+  // A client-portal account has no business in the team's pages (and the API
+  // refuses it there anyway): send it to its portal.
+  const isClientAccount = useAuthStore((st) => !!st.user?.is_client);
+  React.useEffect(() => {
+    if (isClientAccount) window.location.replace(withBasePath("/portal"));
+  }, [isClientAccount]);
 
   // Global keyboard shortcut for command palette
   React.useEffect(() => {

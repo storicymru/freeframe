@@ -21,6 +21,7 @@ import { CompareOverlay } from '@/components/review/compare/compare-overlay'
 import { useReviewStore } from '@/stores/review-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { SignOffBadge, SignedOffLockNotice, useAssetSignOff } from '@/components/review/sign-off-status'
+import { ClientStatusSelect } from '@/components/review/client-status'
 import { useComments } from '@/hooks/use-comments'
 import { useSSE } from '@/hooks/use-sse'
 import { api } from '@/lib/api'
@@ -181,6 +182,9 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
   // comments, so the controls for them step aside and say why.
   const { signOff, mutate: mutateSignOff } = useAssetSignOff(asset?.id)
   const signedOff = !!signOff?.signed_off
+  // Reopening moves the asset back to review on the server; the asset in hand
+  // was loaded before that, so the status control is told directly.
+  const [statusAfterReopen, setStatusAfterReopen] = useState<'in_review' | null>(null)
   const canReopen = currentRole === 'owner' || !!user?.is_superadmin
   const canComment = currentRole !== 'viewer' && !signedOff
   // delete_comment lets a project owner remove anyone's comment.
@@ -689,10 +693,18 @@ function ReviewScreenInner({ projectId }: { projectId: string }) {
               Compare
             </button>
           )}
+          {currentRole !== 'viewer' && currentRole !== 'reviewer' && (
+            <ClientStatusSelect
+              assetId={asset.id}
+              status={statusAfterReopen ?? asset.status}
+              disabled={signedOff}
+              disabledReason="Signed off. Reopen it to change what the client sees."
+            />
+          )}
           <SignOffBadge
             state={signOff}
             canReopen={canReopen}
-            onReopened={(next) => { mutateSignOff(next, { revalidate: false }) }}
+            onReopened={(next) => { mutateSignOff(next, { revalidate: false }); setStatusAfterReopen('in_review') }}
           />
           {!signedOff && (
           <button

@@ -51,6 +51,8 @@ export interface User {
   avatar_color: string | null;
   status: UserStatus;
   is_superadmin: boolean;
+  /** A client-portal account: it uses /portal and nothing else. */
+  is_client?: boolean;
   email_verified: boolean;
   invite_token?: string | null;
   preferences: Record<string, unknown>;

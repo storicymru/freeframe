@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, KeyboardEvent, ClipboardEvent } from 'reac
 import { useRouter } from 'next/navigation'
 import { api, ApiError } from '@/lib/api'
 import { setTokens } from '@/lib/auth'
+import { homePathFor, signInCameFrom } from '@/lib/client-home'
 import { useAuthStore } from '@/stores/auth-store'
 import { useBranding } from '@/components/shared/branding-provider'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,12 @@ export function LoginForm() {
   const initialStep: Step = defaultLoginMode === 'password' ? 'classic' : 'email'
   const [step, setStep] = useState<Step>(initialStep)
   const choseStep = useRef(false)
+  // A client's emails link to /login?mode=code: they have no password, so they
+  // start on "email me a code" whatever the instance's default is.
+  useEffect(() => {
+    if (choseStep.current) return
+    if (new URLSearchParams(window.location.search).get('mode') === 'code') setStep('email')
+  }, [])
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState('')
   const [code, setCode] = useState(['', '', '', '', '', ''])
@@ -140,7 +147,7 @@ export function LoginForm() {
         setTokens(res.access_token, res.refresh_token)
         await useAuthStore.getState().fetchUser()
         const user = useAuthStore.getState().user
-        router.replace('/projects')
+        router.replace(homePathFor(useAuthStore.getState().user, signInCameFrom()))
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -195,7 +202,7 @@ export function LoginForm() {
       setTokens(res.access_token, res.refresh_token)
       await useAuthStore.getState().fetchUser()
       const u = useAuthStore.getState().user
-      router.replace('/projects')
+      router.replace(homePathFor(useAuthStore.getState().user, signInCameFrom()))
     } catch (err) {
       if (err instanceof ApiError) {
         setGeneralError(err.detail)
@@ -231,7 +238,7 @@ export function LoginForm() {
       setTokens(res.access_token, res.refresh_token)
       await useAuthStore.getState().fetchUser()
       const u = useAuthStore.getState().user
-      router.replace('/projects')
+      router.replace(homePathFor(useAuthStore.getState().user, signInCameFrom()))
     } catch (err) {
       if (err instanceof ApiError) {
         setClassicError(err.detail)

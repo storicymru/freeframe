@@ -405,3 +405,39 @@ def send_client_portal_invite_email(
     except Exception as exc:
         self.retry(exc=exc)
 
+
+@shared_task(bind=True, queue="email_low", max_retries=3, default_retry_delay=120)
+def send_client_review_ready_email(
+    self,
+    to_email: str,
+    client_name: str,
+    sender_name: str,
+    asset_name: str,
+    project_name: str,
+    review_link: str,
+):
+    """Tell a client a video is waiting for their review in the portal."""
+    try:
+        subject = f"Ready for your review: {asset_name}"
+        html_body = render_template(
+            "email/client_review_ready.html",
+            subject=subject,
+            client_name=client_name,
+            sender_name=sender_name,
+            asset_name=asset_name,
+            project_name=project_name,
+            review_link=review_link,
+        )
+        text_body = (
+            f"Hello {client_name},\n\n{sender_name} has shared {asset_name} for your review.\n\n"
+            f"Watch it, leave comments and sign it off here: {review_link}\n\n"
+            "You will be asked to sign in with this email address; we will send you a code."
+        )
+
+        success = _send_email(to_email, subject, html_body, text_body)
+        if not success:
+            raise Exception("Email sending failed")
+        return {"status": "sent", "to": to_email}
+    except Exception as exc:
+        self.retry(exc=exc)
+

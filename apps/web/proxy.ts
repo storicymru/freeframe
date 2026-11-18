@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server'
 import { withBasePath } from './lib/base-path'
 
 const PUBLIC_ROUTES = ['/login', '/setup']
-const PUBLIC_PREFIXES = ['/invite/', '/share/']
+// /portal/enter/ is the one-time sign-in link from a client's invitation.
+const PUBLIC_PREFIXES = ['/invite/', '/share/', '/portal/enter/']
 
 // Server-to-server address. NEXT_PUBLIC_API_URL is written for the browser (in
 // the production image it is the relative path `/api`, which a server-side
@@ -61,6 +62,8 @@ export async function proxy(request: NextRequest) {
   if (!accessToken && !refreshToken) {
     const loginUrl = new URL(withBasePath('/login'), request.url)
     loginUrl.searchParams.set('from', pathname)
+    // A client has no password: their links land on "email me a code".
+    if (pathname === '/portal' || pathname.startsWith('/portal/')) loginUrl.searchParams.set('mode', 'code')
     return NextResponse.redirect(loginUrl)
   }
 

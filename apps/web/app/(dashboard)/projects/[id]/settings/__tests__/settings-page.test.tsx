@@ -83,10 +83,10 @@ afterEach(() => {
 })
 
 describe('who sees the settings', () => {
-  it('shows the owner three tabs', async () => {
+  it('shows the owner the four tabs', async () => {
     renderPage()
     const tabs = await screen.findAllByRole('tab')
-    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'People', 'Danger'])
+    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'People', 'Clients', 'Danger'])
     expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true')
   })
 
