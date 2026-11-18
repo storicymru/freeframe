@@ -102,15 +102,31 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
     /// bubble, so they are caught on the way down.
     private static let followScript = """
     (function () {
-      var timer;
-      document.addEventListener('seeked', function (event) {
-        var video = event.target;
-        if (!(video instanceof HTMLVideoElement)) return;
+      var timer, last = -1;
+      function tell(seconds) {
+        if (!isFinite(seconds)) return;
         clearTimeout(timer);
         timer = setTimeout(function () {
-          window.webkit.messageHandlers.adborth.postMessage({ seconds: video.currentTime });
+          if (Math.abs(seconds - last) < 0.001) return;
+          last = seconds;
+          window.webkit.messageHandlers.adborth.postMessage({ seconds: seconds });
         }, 120);
+      }
+      // The player jumps by setting the video's time: catch that directly, so it
+      // works wherever the video sits in the page and before it has loaded.
+      var slot = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
+      if (slot && slot.set) {
+        Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+          configurable: true, enumerable: slot.enumerable,
+          get: function () { return slot.get.call(this); },
+          set: function (value) { slot.set.call(this, value); tell(Number(value)); }
+        });
+      }
+      // And the browser's own notice, for seeks made any other way.
+      document.addEventListener('seeked', function (event) {
+        if (event.target instanceof HTMLMediaElement) tell(event.target.currentTime);
       }, true);
+      window.webkit.messageHandlers.adborth.postMessage({ ready: location.pathname });
     })();
     """
 
@@ -190,8 +206,11 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         // A file named selftest holding a number of seconds asks for one move, to prove the link.
         let test = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("selftest")
         if let text = try? String(contentsOf: test, encoding: .utf8), let seconds = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                PanelLog.write("self-test to \(seconds)s: \(FinalCutTimeline.movePlayhead(toSeconds: seconds))")
+            // Through the page, the way a real click goes: a video's time is set.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                self?.web.evaluateJavaScript("document.createElement('video').currentTime = \(seconds); 'set'") { result, error in
+                    PanelLog.write("self-test through the page to \(seconds)s: \(String(describing: result)) \(String(describing: error))")
+                }
             }
         }
         NSLog("AdborthPanel: opening %@", site.absoluteString)
