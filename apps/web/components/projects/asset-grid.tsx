@@ -400,7 +400,9 @@ export function AssetGrid({
 
       {/* ─── Navigator Bar (Frame.io style) ─────────────────────────────── */}
       {!shareMode && (
-        <div className="flex items-center gap-1 border-b border-border pb-2.5">
+        // Wraps rather than running off the side: on a phone the actions drop
+        // to a line of their own, and the page only ever scrolls up and down.
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-2 border-b border-border pb-2.5">
           {/* Left group: Appearance + Fields + Sort */}
           <AppearancePopover />
 
@@ -412,7 +414,7 @@ export function AssetGrid({
 
           {/* Right group: action buttons passed from parent */}
           {actions && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
               {actions}
             </div>
           )}

@@ -710,10 +710,10 @@ export default function ProjectDetailPage() {
         {...regionProps}
       >
       <div
-        className="flex-1 flex flex-col min-w-0 bg-bg-primary h-full overflow-y-auto"
+        className="flex-1 flex flex-col min-w-0 bg-bg-primary h-full overflow-y-auto overflow-x-hidden overscroll-x-none"
         onClick={() => setSelectedAsset(null)}
       >
-        <div className="px-5 pt-3 pb-6 space-y-3">
+        <div className="px-5 pt-3 pb-6 max-md:pb-28 space-y-3">
           {/* Asset grid, Share links, or Trash view */}
           {showShareLinks && !selectedShareLink ? (
             <ShareLinksTable
@@ -981,8 +981,8 @@ export default function ProjectDetailPage() {
                         setFolderDialogOpen(true);
                       }}
                     >
-                      <FolderPlus className="h-4 w-4" />
-                      New Folder
+                      <FolderPlus className="h-4 w-4 shrink-0" />
+                      <span className="whitespace-nowrap max-sm:sr-only">New Folder</span>
                     </button>
                   )}
                   {canUpload && (

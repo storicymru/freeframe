@@ -87,7 +87,8 @@ export default function DashboardLayout({
       >
         {!isAssetViewer && <Header onSearchOpen={() => setCommandOpen(true)} />}
 
-        <div className={cn("relative flex-1 overflow-y-auto", !isAssetViewer && "max-md:pb-24")}>{children}</div>
+        {/* Up and down only: nothing in a page may drag the whole screen sideways. */}
+        <div className={cn("relative flex-1 overflow-y-auto overflow-x-hidden overscroll-x-none", !isAssetViewer && "max-md:pb-24")}>{children}</div>
       </main>
 
       {/* Attribution floats over the content rather than living in the sidebar,

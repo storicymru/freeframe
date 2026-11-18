@@ -100,3 +100,27 @@ describe('the leave warning in the shell', () => {
     expect(leaves()).toBe(false)
   })
 })
+
+describe('the shell on a phone', () => {
+  it('lets a page scroll up and down only, and gives it the full width', () => {
+    useUploadStore.setState({ files: [], panelOpen: false, historyLoaded: true, historyHasMore: false })
+    render(<DashboardLayout><div>page</div></DashboardLayout>)
+
+    // A toolbar wider than the screen once dragged the whole project page
+    // sideways, leaving half of it blank.
+    const area = screen.getByText('page').parentElement as HTMLElement
+    expect(area.className).toContain('overflow-x-hidden')
+    expect(area.className).toContain('overflow-y-auto')
+    // Room for the bar along the bottom, and no rail's margin beside it.
+    expect(area.className).toContain('max-md:pb-24')
+    expect((area.parentElement as HTMLElement).className).toContain('max-md:!ml-0')
+  })
+
+  it('moves the uploads panel to the edge of the screen, where there is no rail', () => {
+    useUploadStore.setState({ files: [], panelOpen: true, historyLoaded: true, historyHasMore: false })
+    render(<DashboardLayout><div>page</div></DashboardLayout>)
+
+    expect(panelBox().className).toContain('max-md:[--ff-left:0px]')
+    expect(panelBox().className).toContain('max-md:w-full')
+  })
+})
