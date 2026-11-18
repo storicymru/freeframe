@@ -4,6 +4,12 @@
 <dict>
   <key>com.apple.security.app-sandbox</key><true/>
   <key>com.apple.security.network.client</key><true/>
+  <key>com.apple.security.temporary-exception.apple-events</key>
+  <array>
+    <string>com.apple.FinalCut</string>
+    <string>com.apple.FinalCutApp</string>
+    <string>com.apple.FinalCutTrial</string>
+  </array>
   <!-- Lets the panel ask Final Cut which library and event the open project is in. -->
   <key>com.apple.security.scripting-targets</key>
   <dict>
