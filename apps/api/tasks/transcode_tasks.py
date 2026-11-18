@@ -238,31 +238,61 @@ def _publish_quick_preview(db, asset, version, media_file, transcoder, output_pr
     return True
 
 
-@celery_app.task(name="apps.api.tasks.transcode_tasks.delete_preview_outputs")
-def delete_preview_outputs(prefix: str):
-    """Remove a quick preview once the full ladder has replaced it.
+def sweep_replaced_previews(db, now=None) -> int:
+    """Clear away quick previews whose full ladder has replaced them.
 
-    Runs a while after the swap so anyone still playing the preview finishes on
-    it. Refuses anything that is not a preview folder, and anything a MediaFile
-    still points at (the ladder failed and the version stayed on its preview).
+    A preview is kept for PREVIEW_KEEP_SECONDS after the ladder lands, for
+    anyone still playing it, and then its files are removed and the version's
+    stored size is measured again without them. Found from the timing log, so
+    this does not depend on a timer surviving a worker restart: whatever is
+    still on disk is picked up by the next run. Returns how many were removed.
+
+    A version still playing from its preview (the ladder failed) is left alone.
     """
+    from datetime import datetime, timedelta, timezone
+    from ..models.processing_run import ProcessingRun
     from ..services.s3_service import delete_prefix
 
-    if not (isinstance(prefix, str) and prefix.startswith("processed/") and prefix.endswith(PREVIEW_SUFFIX)):
-        return
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(seconds=PREVIEW_KEEP_SECONDS)
+    runs = (
+        db.query(ProcessingRun)
+        .filter(
+            ProcessingRun.preview_kind.isnot(None),
+            ProcessingRun.preview_removed_at.is_(None),
+            ProcessingRun.outcome == "ready",
+            ProcessingRun.processing_completed_at.isnot(None),
+            ProcessingRun.processing_completed_at <= cutoff,
+        )
+        .all()
+    )
+    removed = 0
+    for run in runs:
+        media = db.query(MediaFile).filter(MediaFile.version_id == run.version_id).first()
+        try:
+            if media is None or not media.s3_key_processed:
+                # The version is gone, and the collector took its folder with it.
+                run.preview_removed_at = datetime.now(timezone.utc)
+                db.commit()
+                continue
+            if _has_preview(media):
+                continue
+            ladder = media.s3_key_processed.rstrip("/")
+            delete_prefix(f"{ladder}{PREVIEW_SUFFIX}/")
+            _record_derived_size(db, media, ladder)
+            run.preview_removed_at = datetime.now(timezone.utc)
+            db.commit()
+            removed += 1
+        except Exception:  # noqa: BLE001 - one bad preview must not stop the rest
+            log.warning("could not clear the preview of version %s", run.version_id, exc_info=True)
+            db.rollback()
+    return removed
+
+
+@celery_app.task(name="sweep_replaced_previews")
+def sweep_replaced_previews_task():
     db = SessionLocal()
     try:
-        in_use = db.query(MediaFile).filter(MediaFile.s3_key_processed == prefix).first()
-        if in_use is not None:
-            return
-        delete_prefix(prefix + "/")
-        # The size recorded when the ladder landed counted the preview beside
-        # it. Measure again now that it is gone. Best effort, like the first.
-        parent = prefix[: -len(PREVIEW_SUFFIX)]
-        owner = db.query(MediaFile).filter(MediaFile.s3_key_processed == parent).first()
-        if owner is not None:
-            _record_derived_size(db, owner, parent)
-            db.commit()
+        return {"removed": sweep_replaced_previews(db)}
     finally:
         db.close()
 
@@ -415,17 +445,10 @@ def _process_video(
     if not result.success:
         raise RuntimeError(f"Transcode failed: {result.error}")
 
-    preview_prefix = media_file.s3_key_processed if had_preview else None
+    # A preview that the ladder has just replaced stays for a while, for anyone
+    # still playing it; `sweep_replaced_previews` clears it away afterwards.
     _store_result(media_file, result)
     db.flush()
-    if preview_prefix and preview_prefix != result.hls_prefix:
-        # The ladder is in place. Clear the preview away later, not now: someone
-        # may be watching it. If this never runs, the retention GC reclaims it
-        # with the rest of the version's folder.
-        try:
-            delete_preview_outputs.apply_async(args=[preview_prefix], countdown=PREVIEW_KEEP_SECONDS)
-        except Exception:  # noqa: BLE001
-            log.warning("could not schedule removal of %s", preview_prefix, exc_info=True)
 
 
 def _process_audio(db, asset, version, media_file, s3, output_prefix):

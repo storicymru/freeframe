@@ -59,6 +59,7 @@ celery_app.conf.update(
         "cleanup_soft_deleted": {"queue": "maintenance"},
         "requeue_stuck_processing": {"queue": "maintenance"},
         "sweep_orphan_s3": {"queue": "maintenance"},
+        "sweep_replaced_previews": {"queue": "maintenance"},
         # A listing per unmeasured version: long, I/O heavy, latency-insensitive.
         "backfill_media_derived_size": {"queue": "maintenance"},
         # Not housekeeping: this one is dispatched from a request handler and
@@ -96,6 +97,10 @@ celery_app.conf.beat_schedule = {
     "cleanup-soft-deleted": {
         "task": "cleanup_soft_deleted",
         "schedule": crontab(minute=0, hour=3),  # daily at 03:00 UTC
+    },
+    "sweep-replaced-previews": {
+        "task": "sweep_replaced_previews",
+        "schedule": crontab(minute="*/15"),  # every 15 minutes
     },
     "sweep-orphan-s3": {
         "task": "sweep_orphan_s3",

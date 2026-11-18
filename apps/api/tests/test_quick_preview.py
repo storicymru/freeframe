@@ -1,12 +1,14 @@
 """The quick preview: a watchable version first, the full ladder behind it."""
 import functools
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from apps.api.models.asset import ProcessingStatus
+from apps.api.models.processing_run import ProcessingRun
 from apps.api.tasks import transcode_tasks
-from apps.api.tasks.transcode_tasks import _has_preview, _process_video, delete_preview_outputs
+from apps.api.tasks.transcode_tasks import _has_preview, _process_video, sweep_replaced_previews
 from apps.api.tests import test_source_copy
 from packages.transcoder.base import TranscodeJob, TranscodeResult
 
@@ -39,8 +41,8 @@ def _run(results, *, enabled=True, size=BIG, processed=None):
          patch.object(transcode_tasks.settings, "transcoder_quick_preview", enabled), \
          patch.object(transcode_tasks, "_publish_event") as events, \
          patch("apps.api.services.processing_log.record_preview_ready") as recorded, \
-         patch("apps.api.services.s3_service.delete_prefix") as deleted, \
-         patch.object(delete_preview_outputs, "apply_async") as scheduled:
+         patch("apps.api.services.s3_service.delete_prefix") as deleted:
+        scheduled = MagicMock()
         MockT.return_value.transcode = transcode
         _process_video(MagicMock(), MagicMock(), version, media_file, MagicMock(), PREFIX)
     return jobs, media_file, version, statuses, scheduled, recorded, events, deleted
@@ -66,12 +68,10 @@ def test_a_copyable_upload_is_watchable_before_the_ladder_starts():
     recorded.assert_called_once()
     assert recorded.call_args[0][1] == "copy"
     assert events.call_args_list[0][0][1] == "transcode_complete"
-    # Afterwards it is on the ladder, and the preview is cleared away later.
+    # Afterwards it is on the ladder. The preview's files are left for the
+    # sweep, so nothing is deleted while someone may still be playing them.
     assert media_file.s3_key_processed == PREFIX and media_file.s3_key_download == "d.mp4"
     assert media_file.s3_key_thumbnail == f"{PREFIX}/thumbnail.jpg"
-    scheduled.assert_called_once()
-    assert scheduled.call_args.kwargs["args"] == [f"{PREFIX}/preview"]
-    assert scheduled.call_args.kwargs["countdown"] > 0
 
 
 def test_an_upload_that_cannot_be_copied_gets_a_720p_preview():
@@ -110,7 +110,6 @@ def test_a_retry_with_the_preview_in_place_goes_straight_to_the_ladder():
     assert len(jobs) == 1 and jobs[0].copy_only is False
     recorded.assert_not_called()
     assert media_file.s3_key_processed == PREFIX
-    assert scheduled.call_args.kwargs["args"] == [f"{PREFIX}/preview"]
 
 
 def test_a_failed_ladder_leaves_the_preview_in_place():
@@ -125,32 +124,75 @@ def test_has_preview():
     assert not _has_preview(MagicMock())
 
 
-@pytest.mark.parametrize("prefix", ["processed/p/a/v", "raw/p/a/v/preview", "", None, "processed/p/a/v/preview/"])
-def test_cleanup_refuses_anything_that_is_not_a_preview_folder(prefix):
+# ── clearing a replaced preview away ─────────────────────────────────────────
+#
+# Against real Postgres: which runs the sweep picks is a query.
+
+def _run_row(db, seed, *, completed_minutes_ago, kind="copy", outcome="ready", on_preview=False, removed=False):
+    owner = seed.user()
+    asset = seed.asset(seed.project(owner), owner)
+    version, media = seed.version(asset, owner, s3_keys=True)
+    ladder = f"processed/p/{asset.id}/{version.id}"
+    media.s3_key_processed = f"{ladder}/preview" if on_preview else ladder
+    now = datetime.now(timezone.utc)
+    done = now - timedelta(minutes=completed_minutes_ago)
+    run = ProcessingRun(
+        version_id=version.id, asset_id=asset.id, attempts=1, preview_kind=kind,
+        preview_ready_at=done, processing_completed_at=done, outcome=outcome,
+        preview_removed_at=now if removed else None,
+    )
+    db.add(run)
+    db.flush()
+    return run, media, ladder
+
+
+def test_the_sweep_clears_a_replaced_preview_and_measures_again(live_db, seed):
+    run, media, ladder = _run_row(live_db, seed, completed_minutes_ago=60)
     with patch("apps.api.services.s3_service.delete_prefix") as deleted, \
-         patch.object(transcode_tasks, "SessionLocal") as session:
-        delete_preview_outputs(prefix)
+         patch("apps.api.services.s3_service.prefix_size_bytes", return_value=4_242) as measured:
+        assert sweep_replaced_previews(live_db) == 1
+    deleted.assert_called_once_with(f"{ladder}/preview/")
+    measured.assert_called_once_with(ladder)
+    assert media.derived_size_bytes == 4_242
+    assert run.preview_removed_at is not None
+
+
+def test_the_sweep_runs_again_only_for_what_is_still_there(live_db, seed):
+    _run_row(live_db, seed, completed_minutes_ago=60)
+    with patch("apps.api.services.s3_service.delete_prefix") as deleted, \
+         patch("apps.api.services.s3_service.prefix_size_bytes", return_value=1):
+        assert sweep_replaced_previews(live_db) == 1
+        assert sweep_replaced_previews(live_db) == 0
+    assert deleted.call_count == 1
+
+
+def test_the_sweep_leaves_what_it_should(live_db, seed):
+    recent, _, _ = _run_row(live_db, seed, completed_minutes_ago=5)
+    still_on_preview, _, _ = _run_row(live_db, seed, completed_minutes_ago=60, on_preview=True)
+    no_preview, _, _ = _run_row(live_db, seed, completed_minutes_ago=60, kind=None)
+    failed, _, _ = _run_row(live_db, seed, completed_minutes_ago=60, outcome="failed")
+    done_already, _, _ = _run_row(live_db, seed, completed_minutes_ago=60, removed=True)
+    with patch("apps.api.services.s3_service.delete_prefix") as deleted, \
+         patch("apps.api.services.s3_service.prefix_size_bytes", return_value=1):
+        assert sweep_replaced_previews(live_db) == 0
     deleted.assert_not_called()
-    session.assert_not_called()
+    assert recent.preview_removed_at is None and still_on_preview.preview_removed_at is None
 
 
-def test_cleanup_leaves_a_preview_a_file_still_plays_from():
-    db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = MagicMock()
-    with patch("apps.api.services.s3_service.delete_prefix") as deleted, \
-         patch.object(transcode_tasks, "SessionLocal", return_value=db):
-        delete_preview_outputs(f"{PREFIX}/preview")
-    deleted.assert_not_called()
-    db.close.assert_called_once()
+def test_the_sweep_survives_a_storage_error_and_tries_again_next_time(live_db, seed):
+    run, _, _ = _run_row(live_db, seed, completed_minutes_ago=60)
+    live_db.rollback = live_db.flush  # keep the seeded rows; the test's own rollback still applies
+    with patch("apps.api.services.s3_service.delete_prefix", side_effect=RuntimeError("storage down")):
+        assert sweep_replaced_previews(live_db) == 0
+    assert run.preview_removed_at is None
 
 
-def test_cleanup_removes_a_replaced_preview():
-    db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = None
-    with patch("apps.api.services.s3_service.delete_prefix") as deleted, \
-         patch.object(transcode_tasks, "SessionLocal", return_value=db):
-        delete_preview_outputs(f"{PREFIX}/preview")
-    deleted.assert_called_once_with(f"{PREFIX}/preview/")
+def test_the_sweep_is_scheduled_on_the_maintenance_queue():
+    from apps.api.tasks.celery_app import celery_app
+    entries = [e for e in celery_app.conf.beat_schedule.values() if e["task"] == "sweep_replaced_previews"]
+    assert len(entries) == 1
+    assert celery_app.conf.task_routes["sweep_replaced_previews"] == {"queue": "maintenance"}
+    assert "sweep_replaced_previews" in celery_app.tasks
 
 
 # ── the transcoder's copy-only mode ──────────────────────────────────────────

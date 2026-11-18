@@ -43,6 +43,9 @@ class ProcessingRun(Base):
     # how ("copy" of the upload, or a "720p" encode). Empty without one.
     preview_ready_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     preview_kind: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    # When the preview's files were cleared away after the ladder replaced
+    # them. Empty while they are still there, which is how the sweep finds them.
+    preview_removed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # "ready" or "failed" once processing has ended; empty while it runs.
     outcome: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
