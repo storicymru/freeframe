@@ -27,14 +27,27 @@ rm -rf "$ICONSET"
 # extension main, and Final Cut asks for the view controller by name.
 APPEX="$APP/Contents/PlugIns/Adborth.appex"
 mkdir -p "$APPEX/Contents/MacOS" "$APPEX/Contents/Resources"
+# Final Cut talks to an extension through classes in its ProExtension framework,
+# which the extension has to carry. It is copied from the Final Cut installed
+# on this Mac at build time, so Apple's code is never in the repository.
+FCP_FRAMEWORK=""
+for fcp in "/Applications/Final Cut Pro.app" "/Applications/Final Cut Pro Creator Studio.app"; do
+  [ -d "$fcp/Contents/Frameworks/ProExtension.framework" ] && { FCP_FRAMEWORK="$fcp/Contents/Frameworks"; break; }
+done
+[ -n "$FCP_FRAMEWORK" ] || { echo "Final Cut Pro is not installed: its ProExtension framework is needed to build the panel."; exit 1; }
+mkdir -p "$APPEX/Contents/Frameworks"
+cp -R "$FCP_FRAMEWORK/ProExtension.framework" "$APPEX/Contents/Frameworks/"
 swiftc -O -module-name AdborthPanel -parse-as-library -application-extension \
   Panel/PanelViewController.swift -o "$APPEX/Contents/MacOS/AdborthPanel" \
+  -F "$APPEX/Contents/Frameworks" -framework ProExtension \
+  -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -Xlinker -e -Xlinker _NSExtensionMain
 cp Panel/Info.plist "$APPEX/Contents/Info.plist"
 cp "$APP/Contents/Resources/Adborth.icns" "$APPEX/Contents/Resources/Adborth.icns"
 
 # Signed for this Mac only (no Apple developer account needed). The panel is
 # signed first, with its sandbox: macOS will not load an extension without one.
+codesign --force --sign - "$APPEX/Contents/Frameworks/ProExtension.framework"
 codesign --force --sign - --entitlements Panel/Panel.entitlements "$APPEX"
 codesign --force --sign - "$APP"
 echo "Built $APP"

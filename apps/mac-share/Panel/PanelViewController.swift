@@ -51,6 +51,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        NSLog("AdborthPanel: opening %@", site.absoluteString)
         web.load(URLRequest(url: site))
     }
 
@@ -72,9 +73,23 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         return nil
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { status.isHidden = true }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        status.isHidden = true
+        NSLog("AdborthPanel: loaded %@ (%@)", webView.url?.absoluteString ?? "-", webView.title ?? "-")
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        NSLog("AdborthPanel: failed mid-load: %@", error.localizedDescription)
+    }
+
+    // The page's own process died (it happens after a long sleep): start it again.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        NSLog("AdborthPanel: the page's process ended; reloading")
+        webView.load(URLRequest(url: site))
+    }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        NSLog("AdborthPanel: could not load: %@", error.localizedDescription)
         status.stringValue = "Adborth could not be reached.\n\(error.localizedDescription)"
         status.isHidden = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
