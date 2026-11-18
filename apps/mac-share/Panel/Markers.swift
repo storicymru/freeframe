@@ -46,9 +46,22 @@ struct Rational: Comparable {
 /// One comment thread, ready to become a marker.
 struct MarkerComment {
     var seconds: Double      // from the start of the video
-    var title: String        // "Name: what they said"
-    var note: String         // the replies, one a line
+    var who: String          // who said it
+    var body: String         // what they said
+    var replies: [String]    // "Name: reply", in order
     var done: Bool           // resolved in Adborth
+    var number = 0           // its place in the list, counted from 1; set when the markers are built
+    var digits = 2
+
+    /// "03 Name: what they said", on one line.
+    var title: String {
+        let text = "\(who): \(body)".split(whereSeparator: \.isNewline).joined(separator: " ")
+        return number > 0 ? String(format: "%0\(digits)d ", number) + text : text
+    }
+    /// The replies on one line: a line break inside an XML attribute does not survive.
+    var note: String {
+        replies.map { $0.split(whereSeparator: \.isNewline).joined(separator: " ") }.joined(separator: "  •  ")
+    }
 }
 
 struct MarkerResult {
@@ -74,6 +87,20 @@ enum MarkerBuilder {
     private static let clips: Set<String> = [
         "audio", "video", "clip", "title", "mc-clip", "ref-clip", "sync-clip", "asset-clip", "gap", "live-drawing",
     ]
+
+    /// Breaks text into lines of about `limit` characters, at spaces; the title has no wrapping of its own.
+    static func wrap(_ text: String, at limit: Int) -> [String] {
+        var lines: [String] = []
+        for paragraph in text.split(whereSeparator: \.isNewline) {
+            var line = ""
+            for word in paragraph.split(separator: " ") {
+                if !line.isEmpty, line.count + 1 + word.count > limit { lines.append(line); line = "" }
+                line += (line.isEmpty ? "" : " ") + word
+            }
+            if !line.isEmpty { lines.append(line) }
+        }
+        return lines
+    }
 
     /// The name of the project in a dragged FCPXML, if it holds one.
     static func projectName(in fcpxml: String) -> String? {
@@ -112,8 +139,13 @@ enum MarkerBuilder {
         }
         guard !slots.isEmpty else { throw MarkerError.notAProject }
 
+        // Numbered in the order they fall, so the Timeline Index reads as a list.
+        var comments = comments.sorted(by: { $0.seconds < $1.seconds })
+        let digits = max(2, String(comments.count).count)
+        for index in comments.indices { comments[index].number = index + 1; comments[index].digits = digits }
+
         var placed = 0, alreadyThere = 0
-        for comment in comments.sorted(by: { $0.seconds < $1.seconds }) {
+        for comment in comments {
             let frames = Int64((max(0, comment.seconds) / frame.seconds + 0.0001).rounded(.down))
             var moment = start + frame * frames
             // The clip under that moment; past the end, the last clip's last frame.
@@ -126,7 +158,7 @@ enum MarkerBuilder {
             let local = clipStart + (moment - slot.from)
 
             let existing = slot.element.elements(forName: "marker").contains {
-                $0.attribute(forName: "value")?.stringValue == comment.title.split(whereSeparator: \.isNewline).joined(separator: " ")
+                $0.attribute(forName: "value")?.stringValue == comment.title
                     && Rational($0.attribute(forName: "start")?.stringValue) == local
             }
             if existing { alreadyThere += 1; continue }
@@ -134,13 +166,10 @@ enum MarkerBuilder {
             let marker = XMLElement(name: "marker")
             marker.addAttribute(XMLNode.attribute(withName: "start", stringValue: local.text) as! XMLNode)
             marker.addAttribute(XMLNode.attribute(withName: "duration", stringValue: frame.text) as! XMLNode)
-            let title = comment.title.split(whereSeparator: \.isNewline).joined(separator: " ")
-            marker.addAttribute(XMLNode.attribute(withName: "value", stringValue: title) as! XMLNode)
+            marker.addAttribute(XMLNode.attribute(withName: "value", stringValue: comment.title) as! XMLNode)
             marker.addAttribute(XMLNode.attribute(withName: "completed", stringValue: comment.done ? "1" : "0") as! XMLNode)
             if !comment.note.isEmpty {
-                // One line: a line break inside an XML attribute does not survive.
-                let note = comment.note.split(whereSeparator: \.isNewline).joined(separator: "  •  ")
-                marker.addAttribute(XMLNode.attribute(withName: "note", stringValue: note) as! XMLNode)
+                marker.addAttribute(XMLNode.attribute(withName: "note", stringValue: comment.note) as! XMLNode)
             }
             let children = slot.element.children ?? []
             let index = children.firstIndex { afterMarkers.contains($0.name ?? "") } ?? children.count
@@ -164,7 +193,7 @@ enum MarkerBuilder {
                 defer { number += 1 }
                 return "adborth\(number)"
             }
-            let effectID = freshID(), mediaID = freshID()
+            let effectID = freshID(), mediaID = freshID(), titleID = freshID()
             let clipName = original + clipSuffix
 
             let effect = XMLElement(name: "effect")
@@ -172,6 +201,11 @@ enum MarkerBuilder {
             effect.addAttribute(attribute("name", "Timecode"))
             effect.addAttribute(attribute("uid", ".../Generators.localized/Elements.localized/Timecode.localized/Timecode.motn"))
             resources.addChild(effect)
+            let titleEffect = XMLElement(name: "effect")
+            titleEffect.addAttribute(attribute("id", titleID))
+            titleEffect.addAttribute(attribute("name", "Basic Title"))
+            titleEffect.addAttribute(attribute("uid", ".../Titles.localized/Bumper:Opener.localized/Basic Title.localized/Basic Title.moti"))
+            resources.addChild(titleEffect)
 
             let timecode = XMLElement(name: "video")
             timecode.addAttribute(attribute("ref", effectID))
@@ -179,6 +213,80 @@ enum MarkerBuilder {
             timecode.addAttribute(attribute("name", "Timecode"))
             timecode.addAttribute(attribute("start", start.text))
             timecode.addAttribute(attribute("duration", length.text))
+            // The generator's own timecode is small; enlarge it about where it sits.
+            let transform = XMLElement(name: "adjust-transform")
+            transform.addAttribute(attribute("position", "0 -34"))
+            transform.addAttribute(attribute("scale", "1.8 1.8"))
+            transform.addAttribute(attribute("anchor", "0 -34"))
+            timecode.addChild(transform)
+
+            // Each comment is written on the picture from its own moment until
+            // the next one, eight seconds at most, so it can be read in the viewer.
+            let last = start + length - frame
+            func moment(of comment: MarkerComment) -> Rational {
+                let frames = Int64((max(0, comment.seconds) / frame.seconds + 0.0001).rounded(.down))
+                let moment = start + frame * frames
+                return last < moment ? last : moment
+            }
+            var width = 1920.0, height = 1080.0
+            if let formatID = sequence.attribute(forName: "format")?.stringValue,
+               let format = try document.nodes(forXPath: "//resources/format[@id='\(formatID)']").first as? XMLElement,
+               let w = Double(format.attribute(forName: "width")?.stringValue ?? ""),
+               let h = Double(format.attribute(forName: "height")?.stringValue ?? ""), w > 0, h > 0 {
+                width = w; height = h
+            }
+            // Final Cut scales a title's point size with the frame, as if it were
+            // 1080 high. The title does not wrap by itself, so lines are cut to
+            // about two thirds of the frame's width.
+            let across = width * 1080 / height
+            let size = Int(min(64, across / 24).rounded())
+            let perLine = max(16, min(48, Int(across * 0.8 / (Double(size) * 0.47))))
+            let hold = Int64((8 / frame.seconds).rounded())
+            for (index, comment) in comments.enumerated() {
+                let from = moment(of: comment)
+                var until = from + frame * hold
+                if let next = comments[(index + 1)...].first(where: { from < moment(of: $0) }), moment(of: next) < until { until = moment(of: next) }
+                if start + length < until { until = start + length }
+                let lane = 1 + comments[..<index].filter { moment(of: $0) == from }.count
+
+                let heading = String(format: "%0\(comment.digits)d  ", comment.number) + comment.who + (comment.done ? "  ✓" : "")
+                var lines = wrap(comment.body, at: perLine)
+                for reply in comment.replies { lines += wrap("↳ " + reply, at: perLine) }
+                if lines.count > 7 { lines = Array(lines.prefix(7)) + ["…"] }
+
+                let headStyle = freshID(), bodyStyle = freshID()
+                let title = XMLElement(name: "title")
+                title.addAttribute(attribute("ref", titleID))
+                title.addAttribute(attribute("lane", "\(lane)"))
+                title.addAttribute(attribute("offset", from.text))
+                title.addAttribute(attribute("name", comment.title))
+                title.addAttribute(attribute("start", "3600s"))
+                title.addAttribute(attribute("duration", (until - from).text))
+                let text = XMLElement(name: "text")
+                let head = XMLElement(name: "text-style", stringValue: heading + "\n")
+                head.addAttribute(attribute("ref", headStyle))
+                let body = XMLElement(name: "text-style", stringValue: lines.joined(separator: "\n"))
+                body.addAttribute(attribute("ref", bodyStyle))
+                text.addChild(head); text.addChild(body)
+                title.addChild(text)
+                for (id, face, colour, points) in [(headStyle, "Bold", "0.796 0.173 0.188 1", size * 3 / 4), (bodyStyle, "Regular", "1 1 1 1", size)] {
+                    let style = XMLElement(name: "text-style")
+                    style.addAttribute(attribute("font", "Helvetica Neue"))
+                    style.addAttribute(attribute("fontSize", "\(points)"))
+                    style.addAttribute(attribute("fontFace", face))
+                    style.addAttribute(attribute("fontColor", colour))
+                    style.addAttribute(attribute("alignment", "center"))
+                    let definition = XMLElement(name: "text-style-def")
+                    definition.addAttribute(attribute("id", id))
+                    definition.addChild(style)
+                    title.addChild(definition)
+                }
+                // Written from near the top, clear of the timecode along the bottom.
+                let raise = XMLElement(name: "adjust-transform")
+                raise.addAttribute(attribute("position", "0 32"))
+                title.addChild(raise)
+                timecode.addChild(title)
+            }
             let inner = XMLElement(name: "spine")
             inner.addChild(timecode)
             let innerSequence = XMLElement(name: "sequence")
@@ -197,18 +305,14 @@ enum MarkerBuilder {
             clip.addAttribute(attribute("name", clipName))
             clip.addAttribute(attribute("start", start.text))
             clip.addAttribute(attribute("duration", length.text))
-            let last = start + length - frame
-            for comment in comments.sorted(by: { $0.seconds < $1.seconds }) {
-                let frames = Int64((max(0, comment.seconds) / frame.seconds + 0.0001).rounded(.down))
-                var moment = start + frame * frames
-                if last < moment { moment = last }
+            for comment in comments {
                 let marker = XMLElement(name: "marker")
-                marker.addAttribute(attribute("start", moment.text))
+                marker.addAttribute(attribute("start", moment(of: comment).text))
                 marker.addAttribute(attribute("duration", frame.text))
-                marker.addAttribute(attribute("value", comment.title.split(whereSeparator: \.isNewline).joined(separator: " ")))
+                marker.addAttribute(attribute("value", comment.title))
                 marker.addAttribute(attribute("completed", comment.done ? "1" : "0"))
                 if !comment.note.isEmpty {
-                    marker.addAttribute(attribute("note", comment.note.split(whereSeparator: \.isNewline).joined(separator: "  •  ")))
+                    marker.addAttribute(attribute("note", comment.note))
                 }
                 clip.addChild(marker)
             }

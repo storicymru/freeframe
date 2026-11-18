@@ -244,10 +244,16 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         follow.toolTip = "Click a comment or drag the player's bar in Adborth, and Final Cut's playhead goes to the same moment."
         note.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
         note.textColor = .secondaryLabelColor
-        note.lineBreakMode = .byTruncatingTail
+        // Usually one line; after a drop it holds a short summary of what went in.
+        note.lineBreakMode = .byWordWrapping
+        note.maximumNumberOfLines = 5
+        note.alignment = .right
+        note.preferredMaxLayoutWidth = 440
+        note.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let bar = NSStackView(views: [follow, NSView(), note])
         bar.orientation = .horizontal
-        bar.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        bar.alignment = .centerY
+        bar.edgeInsets = NSEdgeInsets(top: 5, left: 12, bottom: 5, right: 12)
         bar.translatesAutoresizingMaskIntoConstraints = false
 
         root.addSubview(web)
@@ -261,7 +267,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             bar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             bar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 28),
+            bar.heightAnchor.constraint(greaterThanOrEqualToConstant: 28),
             status.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             status.centerYAnchor.constraint(equalTo: root.centerYAnchor),
             status.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -48),
@@ -359,7 +365,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 let answer = try JSONDecoder().decode(Answer.self, from: Data(text.utf8))
                 let timed = answer.comments.filter { $0.seconds != nil }
                 let comments = timed.map {
-                    MarkerComment(seconds: $0.seconds!, title: "\($0.who): \($0.body)", note: $0.replies.joined(separator: "\n"), done: $0.done)
+                    MarkerComment(seconds: $0.seconds!, who: $0.who, body: $0.body, replies: $0.replies, done: $0.done)
                 }
                 guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
                 let home = MarkerBuilder.projectName(in: xml).flatMap { FinalCutTimeline.home(ofProject: $0) }
@@ -370,7 +376,16 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 PanelLog.write("wrote \(file.path): \(result.placed) markers")
                 self.handToFinalCut(file)
                 let untimed = answer.comments.count - timed.count
-                self.note.stringValue = "\(result.placed) markers on “\(result.projectName)”, plus a marker clip" + (untimed > 0 ? " (\(untimed) untimed left out)" : "")
+                func count(_ n: Int, _ one: String, _ many: String) -> String { "\(n) \(n == 1 ? one : many)" }
+                let replies = timed.reduce(0) { $0 + $1.replies.count }
+                let resolved = timed.filter(\.done).count
+                var lines = ["Sent to Final Cut: “\(result.projectName)”" + (home.map { " in \($0.event)" } ?? "") + ", with a marker clip beside it.",
+                             count(comments.count, "comment", "comments") + " as numbered markers"
+                                + (replies > 0 ? ", " + count(replies, "reply", "replies") + " in the notes" : "")
+                                + (resolved > 0 ? ", \(resolved) already resolved (ticked)" : "") + "."]
+                if result.alreadyThere > 0 { lines.append("\(result.alreadyThere) were on the project already and were not added twice.") }
+                if untimed > 0 { lines.append(count(untimed, "comment has", "comments have") + " no time on the video and " + (untimed == 1 ? "was" : "were") + " left out.") }
+                self.note.stringValue = lines.joined(separator: "\n")
             } catch {
                 PanelLog.write("markers failed: \(error)")
                 let text = "\(error)".contains("signed-out") ? "Sign in to Adborth in this panel first" : error.localizedDescription
