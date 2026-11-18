@@ -19,6 +19,7 @@ import { SelectMenu } from "@/components/ui/select-menu";
 import { InstanceSettingsTab } from "@/components/settings/instance-settings-tab";
 import { BrandingTab } from "@/components/settings/branding-tab";
 import { StorageTab } from "@/components/settings/storage-tab";
+import { CylchTab } from "@/components/settings/cylch-tab";
 
 /** What each organisation role means, as the picker in the People list shows it. */
 const ORG_ROLE_OPTIONS: { value: OrganisationRole | "none"; label: string; detail: string }[] = [
@@ -223,6 +224,7 @@ const TABS = [
   ["storage", "Storage"],
   ["instance", "Instance settings"],
   ["branding", "Branding"],
+  ["cylch", "Cylch"],
 ] as const;
 
 type AdminTab = (typeof TABS)[number][0];
@@ -233,6 +235,7 @@ const SUBTITLE: Record<AdminTab, string> = {
   storage: "See what takes up space, and clear it out",
   instance: "Configure this instance",
   branding: "Make this instance look like yours",
+  cylch: "Connect Cylch, where client branding is kept",
 };
 
 export default function AdminPage() {
@@ -392,6 +395,7 @@ export default function AdminPage() {
       {tab === "instance" && <InstanceSettingsTab />}
       {tab === "branding" && <BrandingTab />}
       {tab === "storage" && <StorageTab />}
+      {tab === "cylch" && <CylchTab />}
 
       {/* User management */}
       {tab === "users" && (

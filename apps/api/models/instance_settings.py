@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import BigInteger, Boolean, DateTime, SmallInteger, func
+from sqlalchemy import BigInteger, Boolean, DateTime, SmallInteger, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 try:
@@ -31,5 +31,13 @@ class InstanceSettings(Base):
     # TRANSCODER_CRF_OFFSET in charge of an instance configured that way. A
     # default of 3 would write "balanced" into every row on upgrade.
     compression_level: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    # The key Cylch (the studio's project app) signs its requests with: see
+    # routers/cylch.py. Only its SHA-256 is kept, so the key is shown once, when
+    # it is made. NULL means no key: the integration is off. made_by is the
+    # administrator who made it, and owns the projects Cylch creates.
+    cylch_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cylch_key_made_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    cylch_key_made_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cylch_key_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
