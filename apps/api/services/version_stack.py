@@ -119,6 +119,8 @@ def tidy_plan(db: Session, asset: Asset) -> dict:
             "version_number": version.version_number,
             "processing_status": getattr(version.processing_status, "value", str(version.processing_status)),
             "bytes": sizes.get(version.id, 0),
+            # When it was uploaded, so a list of versions reads as a history.
+            "created_at": version.created_at,
             "action": action,
             "reason": reason,
         })

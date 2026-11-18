@@ -190,11 +190,11 @@ function StatusBadge({ upload }: { upload: UploadFile }) {
   const { status, finalizing } = upload
   // A resume waiting for its turn reads like any other file waiting for one.
   if (isWaitingResume(upload)) {
-    return <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-text-tertiary">Queued</span>
+    return <span className="inline-flex items-center rounded-full bg-bg-tertiary px-2 py-0.5 text-[10px] font-medium text-text-tertiary">Queued</span>
   }
   switch (status) {
     case 'queued':
-      return <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-text-tertiary">Queued</span>
+      return <span className="inline-flex items-center rounded-full bg-bg-tertiary px-2 py-0.5 text-[10px] font-medium text-text-tertiary">Queued</span>
     case 'starting':
       return <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent"><Loader2 className="h-2.5 w-2.5 animate-spin" />{upload.resuming ? 'Resuming' : 'Starting'}</span>
     case 'uploading':
@@ -206,7 +206,7 @@ function StatusBadge({ upload }: { upload: UploadFile }) {
     case 'failed':
       return <span className="inline-flex items-center gap-1 rounded-full bg-status-error/10 px-2 py-0.5 text-[10px] font-medium text-status-error"><AlertCircle className="h-2.5 w-2.5" />Failed</span>
     case 'cancelled':
-      return <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-text-tertiary"><Ban className="h-2.5 w-2.5" />Cancelled</span>
+      return <span className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary px-2 py-0.5 text-[10px] font-medium text-text-tertiary"><Ban className="h-2.5 w-2.5" />Cancelled</span>
     case 'interrupted':
       return <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400"><PauseCircle className="h-2.5 w-2.5" />Interrupted</span>
     case 'elsewhere':
@@ -907,7 +907,7 @@ export function UploadsPanel({
 
         {/* Filter tabs */}
         <div className="px-3 pt-2.5 pb-1 shrink-0">
-          <div className="flex items-center bg-white/5 rounded-lg p-0.5">
+          <div className="flex items-center bg-bg-tertiary rounded-lg p-0.5">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -915,7 +915,7 @@ export function UploadsPanel({
                 className={cn(
                   'flex-1 py-1.5 text-[11px] font-medium rounded-md transition-all',
                   filter === tab.id
-                    ? 'bg-white/10 text-text-primary shadow-sm'
+                    ? 'bg-bg-hover text-text-primary shadow-sm'
                     : 'text-text-tertiary hover:text-text-secondary',
                 )}
               >

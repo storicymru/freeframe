@@ -47,6 +47,7 @@ import { FolderTree } from "@/components/projects/folder-tree";
 import { ShareLinksTable } from "@/components/projects/share-links-table";
 import { ShareLinkMenuItems } from "@/components/projects/menus/share-link-menu";
 import { ContextMenuArea, DotsMenu } from "@/components/shared/item-menu";
+import { ManageVersionsDialog } from "@/components/review/manage-versions";
 import {
   ShareLinkContent,
   ShareLinkSettingsPanel,
@@ -330,6 +331,9 @@ export default function ProjectDetailPage() {
   const mayDropFiles = dropRole !== "refuse";
   // delete_comment lets a project owner remove anyone's comment.
   const canModerate = currentRole === "owner";
+  // Version housekeeping is the owner's call (or an admin's), as on the server.
+  const canManageVersions = currentRole === "owner" || user?.is_superadmin === true;
+  const [versionsFor, setVersionsFor] = React.useState<AssetResponse | null>(null);
 
   // One folder's share link, from its menu in the tree, grid or list.
   function openFolderShareDialog(folderId: string, folderName: string) {
@@ -746,7 +750,7 @@ export default function ProjectDetailPage() {
                   {trash.folders.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5"
+                      className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-hover"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <FolderIcon className="h-4 w-4 text-text-tertiary shrink-0" />
@@ -777,7 +781,7 @@ export default function ProjectDetailPage() {
                   {trash.assets.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/5"
+                      className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-hover"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-sm text-text-primary truncate">
@@ -891,6 +895,7 @@ export default function ProjectDetailPage() {
               }}
               loadAssetDownloadOptions={(asset) => fetchAssetDownloadOptions(asset.id)}
               onAssetRename={(asset) => setAssetToRename(asset as AssetResponse)}
+              onAssetManageVersions={canManageVersions ? (asset) => setVersionsFor(asset as AssetResponse) : undefined}
               onAssetDelete={(asset) => setAssetToDelete(asset as AssetResponse)}
               onBulkMove={async (assetIds, folderIds, targetFolderId) => {
                 try {
@@ -1339,6 +1344,16 @@ export default function ProjectDetailPage() {
       />
 
       {/* Rename asset dialog */}
+      {versionsFor && (
+        <ManageVersionsDialog
+          assetId={versionsFor.id}
+          projectId={projectId}
+          assetType={versionsFor.asset_type}
+          onClose={() => setVersionsFor(null)}
+          onChanged={() => { mutateAssets(); }}
+          onReleased={(newAssetId) => router.push(`/projects/${projectId}/assets/${newAssetId}`)}
+        />
+      )}
       <NameDialog
         open={assetToRename !== null}
         onOpenChange={(open) => { if (!open) setAssetToRename(null); }}

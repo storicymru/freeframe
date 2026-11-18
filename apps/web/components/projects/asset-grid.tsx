@@ -83,6 +83,7 @@ interface AssetGridProps {
   /** With this, Download opens a submenu of what the asset can be downloaded as. */
   loadAssetDownloadOptions?: (asset: Asset) => Promise<DownloadOption[] | null>
   onAssetRename?: (asset: Asset) => void
+  onAssetManageVersions?: (asset: Asset) => void
   onAssetDelete?: (asset: Asset) => void
   /** Actions rendered on the right side of the navigator bar */
   actions?: React.ReactNode
@@ -144,6 +145,7 @@ export function AssetGrid({
   onAssetDownload,
   loadAssetDownloadOptions,
   onAssetRename,
+  onAssetManageVersions,
   onAssetDelete,
   actions,
   selectionShortcuts = false,
@@ -527,6 +529,7 @@ export function AssetGrid({
                 onDownload={onAssetDownload ? (rendition) => onAssetDownload(asset, rendition) : undefined}
                 loadDownloadOptions={loadAssetDownloadOptions ? () => loadAssetDownloadOptions(asset) : undefined}
                 onRename={onAssetRename ? () => onAssetRename(asset) : undefined}
+                onManageVersions={onAssetManageVersions ? () => onAssetManageVersions(asset) : undefined}
                 onDelete={onAssetDelete ? () => onAssetDelete(asset) : undefined}
                 contextMenu={selectionMenuFor('asset', asset.id)}
                 onDragStart={(e: React.DragEvent) => {
@@ -666,6 +669,7 @@ export function AssetGrid({
                 onDownload={onAssetDownload ? (rendition) => onAssetDownload(asset, rendition) : undefined}
                 loadDownloadOptions={loadAssetDownloadOptions ? () => loadAssetDownloadOptions(asset) : undefined}
                 onRename={onAssetRename ? () => onAssetRename(asset) : undefined}
+                onManageVersions={onAssetManageVersions ? () => onAssetManageVersions(asset) : undefined}
                 onDelete={onAssetDelete ? () => onAssetDelete(asset) : undefined}
               />
             )

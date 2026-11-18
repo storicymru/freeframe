@@ -40,6 +40,7 @@ interface AssetCardProps {
   /** With this, Download opens a submenu of what the asset can be downloaded as. */
   loadDownloadOptions?: () => Promise<DownloadOption[] | null>
   onRename?: () => void
+  onManageVersions?: () => void
   onDelete?: () => void
   /** Shown on right-click instead of the asset's own menu: the grid passes the
    *  selection's menu when this asset is one of several selected. */
@@ -82,6 +83,7 @@ export function AssetCard({
   onDownload,
   loadDownloadOptions,
   onRename,
+  onManageVersions,
   onDelete,
   contextMenu,
   fileSize,
@@ -104,6 +106,7 @@ export function AssetCard({
       onDownload={onDownload}
       loadDownloadOptions={loadDownloadOptions}
       onRename={onRename}
+      onManageVersions={onManageVersions}
       onDelete={onDelete}
     />
   )

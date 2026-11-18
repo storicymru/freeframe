@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Download, Link as LinkIcon, Pencil, Share2, Trash2 } from 'lucide-react'
+import { Download, Link as LinkIcon, Pencil, Share2, Trash2, Layers } from 'lucide-react'
 import { copyToClipboard } from '@/lib/utils'
 import { withBasePath } from '@/lib/base-path'
 import { DownloadSubmenu } from '@/components/shared/download-menu'
@@ -15,6 +15,8 @@ export interface AssetMenuHandlers {
   /** With this, Download opens a submenu of what the asset can be downloaded as. */
   loadDownloadOptions?: () => Promise<DownloadOption[] | null>
   onRename?: () => void
+  /** Opens the version housekeeping (tidy, delete, release, stack). Owners only. */
+  onManageVersions?: () => void
   onDelete?: () => void
 }
 
@@ -29,6 +31,7 @@ export function AssetMenuItems({
   onDownload,
   loadDownloadOptions,
   onRename,
+  onManageVersions,
   onDelete,
 }: AssetMenuHandlers & { asset: Pick<Asset, 'id' | 'project_id'> }) {
   return (
@@ -60,10 +63,15 @@ export function AssetMenuItems({
       >
         Copy Asset URL
       </MenuAction>
-      {(onRename || onDelete) && <MenuSeparator />}
+      {(onRename || onManageVersions || onDelete) && <MenuSeparator />}
       {onRename && (
         <MenuAction icon={Pencil} onSelect={onRename}>
           Rename
+        </MenuAction>
+      )}
+      {onManageVersions && (
+        <MenuAction icon={Layers} onSelect={onManageVersions}>
+          Manage Versions
         </MenuAction>
       )}
       {onDelete && (

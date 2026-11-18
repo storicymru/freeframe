@@ -62,7 +62,7 @@ export function AppearancePopoverFrame({ children }: { children: React.ReactNode
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors">
+        <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors">
           <SlidersHorizontal className="h-4 w-4" />
           Appearance
         </button>
@@ -73,7 +73,7 @@ export function AppearancePopoverFrame({ children }: { children: React.ReactNode
           side="bottom"
           align="start"
           sideOffset={6}
-          className="z-50 w-72 rounded-xl border border-white/10 bg-[#1a1a1f] shadow-2xl p-4 space-y-4
+          className="z-50 w-72 rounded-xl border border-border bg-bg-elevated shadow-xl p-4 space-y-4
             data-[state=open]:animate-in data-[state=closed]:animate-out
             data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
             data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
@@ -158,7 +158,7 @@ export function AppearancePopover() {
       <ToggleRow label="Flatten Folders" checked={flattenFolders} onCheckedChange={setFlattenFolders} />
 
       {/* Fields section */}
-      <div className="pt-1 border-t border-white/10">
+      <div className="pt-1 border-t border-border">
         <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2.5">Fields</p>
         <div className="space-y-3">
           <ToggleRow label="File Size" checked={showFileSize} onCheckedChange={setShowFileSize} />

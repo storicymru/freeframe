@@ -158,6 +158,17 @@ describe.each(['grid', 'list'] as const)('AssetGrid right-click (%s view)', (lay
     expect(h.onAssetDownload).toHaveBeenCalledWith(assets[1], 'transcode')
   })
 
+  it('offers Manage Versions on right-click when the page allows it, and passes the video', async () => {
+    // Version housekeeping (tidy, delete, release, stack) is the owner's; the
+    // page passes the handler only for them.
+    const onAssetManageVersions = vi.fn()
+    renderGrid({ onAssetManageVersions })
+    fireEvent.contextMenu(screen.getByText('Clip 2'))
+    expect(await menuItems()).toEqual(['Create Share Link', 'Download', 'Copy Asset URL', 'Rename', 'Manage Versions', 'Delete'])
+    await user().click(await screen.findByRole('menuitem', { name: 'Manage Versions' }))
+    await waitFor(() => expect(onAssetManageVersions).toHaveBeenCalledWith(assets[1]))
+  })
+
   it('leaves out the entries that have no action, as on /assets', async () => {
     render(<AssetGrid assets={assets} projectId="" />)
     fireEvent.contextMenu(screen.getByText('Clip 1'))

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
  *
  * `tone` picks the palette. `surface` (the default) uses the theme tokens, for
  * controls on a themed surface such as a dialog or panel. `overlay` is for the
- * Appearance popovers, whose frame is a fixed dark colour in either theme.
+ * Appearance popovers, which sit on a raised panel of the same theme.
  */
 export type ControlTone = 'surface' | 'overlay'
 
@@ -24,12 +24,15 @@ const tones = {
     select: 'bg-bg-tertiary border-border hover:bg-bg-hover [color-scheme:auto]',
     option: undefined,
   },
+  // The popovers used to be a fixed dark frame in either theme, which left
+  // the theme's own dark text on a dark panel in light mode. They follow the
+  // theme now, so this is the surface palette a step more raised.
   overlay: {
-    frame: 'border-white/10',
-    idle: 'bg-white/5 text-text-tertiary hover:text-text-secondary hover:bg-white/10',
-    track: 'bg-white/15',
-    select: 'bg-white/5 border-white/10 hover:bg-white/10',
-    option: 'bg-[#232328]',
+    frame: 'border-border',
+    idle: 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+    track: 'bg-bg-hover',
+    select: 'bg-bg-tertiary border-border hover:bg-bg-hover [color-scheme:auto]',
+    option: undefined,
   },
 } as const
 

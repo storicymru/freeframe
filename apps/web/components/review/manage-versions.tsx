@@ -13,7 +13,7 @@
 import * as React from 'react'
 import { Layers, Loader2, X } from 'lucide-react'
 import { api } from '@/lib/api'
-import { cn, formatBytes } from '@/lib/utils'
+import { cn, formatBytes, formatRelativeTime } from '@/lib/utils'
 import type { Asset } from '@/types'
 
 export interface TidyPlanVersion {
@@ -21,6 +21,7 @@ export interface TidyPlanVersion {
   version_number: number
   processing_status: string
   bytes: number
+  created_at?: string | null
   action: 'keep' | 'remove'
   reason: string | null
 }
@@ -45,6 +46,13 @@ function messageOf(error: unknown, fallback: string): string {
 }
 
 const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/** "18 Nov 2026, 04:27": the date and time a version was uploaded. */
+function exactTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
 export function ManageVersionsButton({
   assetId, projectId, assetType, onChanged, onReleased,
@@ -79,7 +87,7 @@ export function ManageVersionsButton({
   )
 }
 
-function ManageVersionsDialog({
+export function ManageVersionsDialog({
   assetId, projectId, assetType, onClose, onChanged, onReleased,
 }: {
   assetId: string
@@ -198,9 +206,15 @@ function ManageVersionsDialog({
                   <div className="flex items-center gap-3">
                     <span className="w-9 shrink-0 text-sm font-semibold tabular-nums text-text-primary">v{version.version_number}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs tabular-nums text-text-secondary">{formatBytes(version.bytes)}</p>
+                      <p className="text-xs tabular-nums text-text-secondary">
+                        {formatBytes(version.bytes)}
+                        {version.created_at && (
+                          <span title={exactTime(version.created_at)}> · uploaded {formatRelativeTime(version.created_at)}</span>
+                        )}
+                      </p>
                       <p className="text-[11px] text-text-tertiary truncate">
                         {version.action === 'keep' && version.reason ? version.reason : version.processing_status}
+                        {version.created_at ? ` · ${exactTime(version.created_at)}` : ''}
                       </p>
                     </div>
                     <button type="button" disabled={busy || only || inFlight}

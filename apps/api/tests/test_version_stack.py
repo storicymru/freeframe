@@ -83,6 +83,8 @@ def test_the_plan_prices_each_version_and_keeps_the_latest(seed, as_user, owner,
         (1, "remove", 1_500), (2, "remove", 1_500), (3, "keep", 1_500),
     ]
     assert plan["remove_count"] == 2 and plan["remove_bytes"] == 3_000 and plan["total_bytes"] == 4_500
+    # Each row says when the version was uploaded.
+    assert all(v["created_at"] for v in plan["versions"])
 
 
 def test_tidy_trashes_all_but_the_latest_and_records_it(seed, as_user, owner, project, live_db):

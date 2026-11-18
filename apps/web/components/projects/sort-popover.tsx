@@ -59,7 +59,7 @@ export function SortPopoverView<K extends string>({
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors">
+        <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors">
           <ArrowUpDown className="h-4 w-4" />
           <span>Sorted by</span>
           <span className="text-text-primary font-medium">{activeLabel}</span>
@@ -71,7 +71,7 @@ export function SortPopoverView<K extends string>({
           side="bottom"
           align="start"
           sideOffset={6}
-          className="z-50 w-48 rounded-xl border border-white/10 bg-[#1a1a1f] shadow-2xl py-1.5
+          className="z-50 w-48 rounded-xl border border-border bg-bg-elevated shadow-xl py-1.5
             data-[state=open]:animate-in data-[state=closed]:animate-out
             data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
             data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
@@ -90,7 +90,7 @@ export function SortPopoverView<K extends string>({
                 'flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors',
                 sortKey === opt.value
                   ? 'text-accent'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-white/5',
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover',
               )}
             >
               <span className="w-4 shrink-0">

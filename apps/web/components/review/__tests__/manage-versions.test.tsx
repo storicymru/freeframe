@@ -15,7 +15,7 @@ const plan = {
   versions: [
     { version_id: 'v1', version_number: 1, processing_status: 'ready', bytes: 2 * GB, action: 'remove', reason: null },
     { version_id: 'v2', version_number: 2, processing_status: 'ready', bytes: 2 * GB, action: 'remove', reason: null },
-    { version_id: 'v3', version_number: 3, processing_status: 'ready', bytes: 2 * GB, action: 'keep', reason: 'the latest version' },
+    { version_id: 'v3', version_number: 3, processing_status: 'ready', bytes: 2 * GB, action: 'keep', reason: 'the latest version', created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() },
   ],
 }
 const others = [
@@ -50,7 +50,10 @@ describe('the versions dialog', () => {
     expect(within(dialog).getByText(/Episode 3 · 3 versions · 6 GB/)).toBeInTheDocument()
     const rows = within(dialog).getAllByRole('listitem')
     expect(rows.map((row) => row.textContent?.slice(0, 2))).toEqual(['v3', 'v2', 'v1'])
-    expect(within(rows[0]).getByText('the latest version')).toBeInTheDocument()
+    expect(within(rows[0]).getByText(/the latest version/)).toBeInTheDocument()
+    // When it was uploaded: how long ago, with the date and time beside it.
+    expect(within(rows[0]).getByText(/uploaded 3 hours ago/)).toBeInTheDocument()
+    expect(within(rows[1]).queryByText(/uploaded/)).not.toBeInTheDocument()
     expect(within(dialog).getByText(/Removes 2 older versions and frees 4 GB/)).toBeInTheDocument()
   })
 
