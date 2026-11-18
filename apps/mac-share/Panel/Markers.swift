@@ -75,7 +75,8 @@ enum MarkerBuilder {
         "audio", "video", "clip", "title", "mc-clip", "ref-clip", "sync-clip", "asset-clip", "gap", "live-drawing",
     ]
 
-    static func addMarkers(to fcpxml: String, comments: [MarkerComment], nameSuffix: String = " – Adborth comments") throws -> MarkerResult {
+    static func addMarkers(to fcpxml: String, comments: [MarkerComment], nameSuffix: String = " – Adborth comments",
+                           library: URL? = nil, event: String? = nil) throws -> MarkerResult {
         let document = try XMLDocument(xmlString: fcpxml, options: [.nodePreserveWhitespace])
         guard let project = try document.nodes(forXPath: "//project").first as? XMLElement,
               let sequence = project.elements(forName: "sequence").first,
@@ -145,6 +146,20 @@ enum MarkerBuilder {
         project.addAttribute(XMLNode.attribute(withName: "name", stringValue: name) as! XMLNode)
         project.removeAttribute(forName: "uid")
         project.removeAttribute(forName: "id")
+
+        // Named with its library and event, Final Cut puts the copy beside the
+        // original without asking which library it belongs in.
+        if let library, let parent = project.parent as? XMLElement, parent.name == "fcpxml" {
+            let index = project.index
+            project.detach()
+            let inEvent = XMLElement(name: "event")
+            inEvent.addAttribute(XMLNode.attribute(withName: "name", stringValue: event ?? "Adborth") as! XMLNode)
+            inEvent.addChild(project)
+            let inLibrary = XMLElement(name: "library")
+            inLibrary.addAttribute(XMLNode.attribute(withName: "location", stringValue: library.absoluteString) as! XMLNode)
+            inLibrary.addChild(inEvent)
+            parent.insertChild(inLibrary, at: index)
+        }
 
         document.isStandalone = false
         return MarkerResult(xml: document.xmlString(options: [.nodePrettyPrint]), projectName: name, placed: placed, alreadyThere: alreadyThere)
