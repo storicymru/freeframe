@@ -99,7 +99,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <>
       <aside
         className={cn(
-          'fixed left-0 top-0 z-30 flex h-screen flex-col border-r border-border',
+          'surface-navy fixed left-0 top-0 z-30 flex h-screen flex-col',
           'bg-bg-secondary transition-[width] duration-200 overflow-hidden',
           collapsed ? 'w-[52px]' : 'w-[220px]',
         )}
@@ -107,7 +107,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* Logo */}
         <div
           className={cn(
-            'flex h-12 items-center shrink-0 border-b border-border',
+            'flex h-14 items-center shrink-0',
             collapsed ? 'justify-center px-0' : 'px-4 gap-2.5',
           )}
         >
@@ -116,7 +116,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <img
               src={customLogo}
               alt={orgName}
-              className="h-7 w-7 shrink-0 object-contain rounded"
+              className="h-8 w-8 shrink-0 object-contain"
             />
           ) : (
             <ThemedDefaultLogo
@@ -126,7 +126,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             />
           )}
           {!collapsed && (
-            <span className="font-display text-sm text-text-primary truncate">
+            <span className="font-display text-[17px] uppercase leading-none text-text-primary truncate">
               {orgName}
             </span>
           )}

@@ -4,32 +4,33 @@
 
 :root,
 [data-theme="dark"] {
-  /* Stori Cymru Adborth. The same family as Cylch: navy (#1b365d) and red
-     (#cb2c30), DM Sans for text and Outfit for headings. The dark theme is
-     the navy taken down to where video is comfortable to watch against it. */
-  /* Background — dark theme */
-  --bg-primary: #0b1322;
-  --bg-secondary: #101b2f;
-  --bg-tertiary: #16243d;
-  --bg-elevated: #1b2c49;
-  --bg-hover: #213556;
+  /* Adborth, by Stori Cymru. Soft, rounded and calm, the same direction as
+     Cylch: floating rounded panels on a quiet ground, pill-shaped controls,
+     Stori red (#cb2c30) as the one accent and navy (#1b365d) for the brand's
+     own surfaces. DM Sans for text, Outfit for the wordmark and headings. */
+  /* Background — dark theme: a near-black ground, panels a step lighter. */
+  --bg-primary: #101012;
+  --bg-secondary: #1a1a1d;
+  --bg-tertiary: #232327;
+  --bg-elevated: #232327;
+  --bg-hover: #2d2d32;
 
-  /* Borders */
-  --border-primary: #263c5e;
-  --border-secondary: #1c2e4b;
+  /* Borders: barely there. Panels are told apart by their fill. */
+  --border-primary: #2a2a2e;
+  --border-secondary: #222226;
   --border-focus: #e5484d;
 
   /* Text */
-  --text-primary: #eef1f6;
-  --text-secondary: #a3b3cc;
-  --text-tertiary: #7186a6;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #85858f;
   /* Text on the accent: white reads on the brand red where near-black did not. */
   --text-inverse: #ffffff;
 
   /* Accent — Stori red */
   --accent: #cb2c30;
   --accent-hover: #dc4a4e;
-  --accent-muted: #3d1a26;
+  --accent-muted: #2e1516;
 
   /* Status */
   --status-success: #34d399;
@@ -45,37 +46,68 @@
   --space-unit: 4px;
 
   /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 }
 
 [data-theme="light"] {
-  /* Cylch's own light palette. */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f6f7f9;
-  --bg-tertiary: #eef0f2;
+  /* A stone ground with white panels floating on it. */
+  --bg-primary: #efeeeb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f6f5f3;
   --bg-elevated: #ffffff;
-  --bg-hover: #e6e9ee;
+  --bg-hover: #e6e5e1;
 
-  --border-primary: #e0e3e8;
-  --border-secondary: #d3d5da;
+  --border-primary: #e2e1dd;
+  --border-secondary: #d9d9d6;
   --border-focus: #cb2c30;
 
-  --text-primary: #1b2a44;
-  --text-secondary: #55617a;
-  --text-tertiary: #7d889c;
+  --text-primary: #111111;
+  --text-secondary: #4f4f4f;
+  --text-tertiary: #6b6b6b;
   --text-inverse: #ffffff;
 
   --accent: #cb2c30;
-  --accent-hover: #b0252a;
-  --accent-muted: #fdecef;
+  --accent-hover: #a3201f;
+  --accent-muted: #fbe7e6;
 
   --status-success: #0f9d58;
-  --status-warning: #c27c0e;
-  --status-error: #d1293d;
+  --status-warning: #a8690a;
+  --status-error: #c4262e;
   --status-info: #2563eb;
+}
+
+/*
+ * The brand's own surface: navy, in either theme. Everything inside reads the
+ * usual tokens and so needs no classes of its own. Used for the sidebar, the
+ * client portal's header and the welcome screen.
+ */
+.surface-navy,
+:root .surface-navy {
+  --bg-primary: #1b365d;
+  --bg-secondary: #1b365d;
+  --bg-tertiary: #264775;
+  --bg-elevated: #264775;
+  --bg-hover: #2c5085;
+  --border-primary: #2b4a78;
+  --border-secondary: #264775;
+  --text-primary: #ffffff;
+  --text-secondary: #d3dcea;
+  --text-tertiary: #a9b9d1;
+  --accent-muted: #264775;
+  color: var(--text-primary);
+}
+
+/*
+ * Controls are pills. The app writes its buttons out by hand in hundreds of
+ * places as `rounded-md` with a fixed height or a little vertical padding;
+ * this turns exactly those into pills without touching each one. Two
+ * selectors against a utility's one, and after the utilities, so it wins.
+ */
+:is(button, a, [role="button"]):is(.rounded-md, .rounded):is(.h-6, .h-7, .h-8, .h-9, .h-10, .h-11, .py-1, .py-1\.5, .py-2, .py-2\.5) {
+  border-radius: 999px;
 }
 
 @layer base {
@@ -98,7 +130,7 @@
     /* --font-display is set on <body> by next/font (Outfit), as in Cylch. */
     font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
     font-weight: 800;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
   }
 
   /* Scrollbar styling */

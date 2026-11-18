@@ -46,6 +46,16 @@ const config: Config = {
         mono: ['var(--font-mono)'],
         display: ['var(--font-display)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
       },
+      // Softer than Tailwind's own scale: panels and cards are well rounded.
+      borderRadius: {
+        sm: '6px',
+        DEFAULT: '8px',
+        md: '10px',
+        lg: '16px',
+        xl: '20px',
+        '2xl': '24px',
+        '3xl': '28px',
+      },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },

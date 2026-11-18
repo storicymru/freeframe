@@ -7,11 +7,11 @@ import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-all duration-150 ease-spring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg-primary disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium transition-all duration-150 ease-spring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg-primary disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
   {
     variants: {
       variant: {
-        primary: 'bg-accent text-text-inverse hover:bg-accent-hover shadow-sm shadow-accent/20 hover:shadow-md hover:shadow-accent/25',
+        primary: 'bg-accent text-text-inverse hover:bg-accent-hover',
         secondary:
           'bg-bg-tertiary text-text-primary hover:bg-bg-hover border border-border hover:border-border-focus',
         ghost: 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
@@ -19,8 +19,8 @@ const buttonVariants = cva(
           'bg-status-error text-white hover:brightness-110 shadow-sm shadow-status-error/20',
       },
       size: {
-        sm: 'h-8 px-3 text-sm rounded',
-        md: 'h-9 px-4 text-sm',
+        sm: 'h-8 px-3.5 text-sm',
+        md: 'h-9 px-5 text-sm',
         lg: 'h-11 px-6 text-base',
       },
     },

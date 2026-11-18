@@ -5,107 +5,102 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ subject }}</title>
     <style>
-        /* Stori Cymru Adborth: navy and red, as in Cylch. */
+        /* Adborth, by Stori Cymru: a white rounded card on a stone ground,
+           the navy brand band on top, one red pill for the thing to do. */
         body {
             font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
-            color: #1b2a44;
+            color: #111111;
             margin: 0;
             padding: 0;
-            background-color: #f2f2f2;
+            background-color: #efeeeb;
         }
         .container {
-            max-width: 600px;
+            max-width: 560px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 40px 16px;
         }
         .card {
             background: #ffffff;
-            border-radius: 10px;
+            border-radius: 28px;
             overflow: hidden;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.06);
         }
         .logo {
             background-color: #1b365d;
-            border-bottom: 4px solid #cb2c30;
-            padding: 22px 32px;
+            padding: 26px 36px;
             text-align: left;
         }
         .logo h1 {
             color: #ffffff;
             font-family: 'Outfit', 'DM Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
             font-weight: 800;
-            font-size: 22px;
+            font-size: 26px;
             letter-spacing: -0.02em;
+            text-transform: uppercase;
             margin: 0;
         }
-        /* The service's own name, beside the studio's logo. */
-        .product {
-            color: #d3dbe8;
-            font-family: 'Outfit', 'DM Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
-            font-weight: 800;
-            font-size: 13px;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-        }
         .content {
-            padding: 32px;
+            padding: 36px;
         }
         h2 {
-            color: #1b365d;
+            color: #111111;
             font-family: 'Outfit', 'DM Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
             font-weight: 800;
-            font-size: 20px;
-            letter-spacing: -0.01em;
+            font-size: 24px;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
             margin: 0 0 16px 0;
         }
         p {
             margin: 0 0 16px 0;
-            color: #45526b;
+            color: #4f4f4f;
+        }
+        strong {
+            color: #111111;
         }
         .button {
             display: inline-block;
-            padding: 12px 24px;
+            padding: 14px 28px;
             background-color: #cb2c30;
             color: #ffffff !important;
             text-decoration: none;
-            border-radius: 8px;
-            font-weight: 700;
+            border-radius: 999px;
+            font-weight: 600;
             margin: 16px 0;
         }
         .button:hover {
-            background-color: #b0252a;
+            background-color: #a3201f;
         }
         .code {
-            font-size: 32px;
+            font-size: 34px;
             font-weight: bold;
             letter-spacing: 8px;
-            color: #1b365d;
+            color: #111111;
             text-align: center;
             padding: 24px;
-            background: #fdecef;
-            border-radius: 8px;
+            background: #f6f5f3;
+            border-radius: 18px;
             margin: 16px 0;
         }
         .quote {
-            border-left: 3px solid #cb2c30;
-            padding-left: 16px;
+            padding: 14px 18px;
             margin: 16px 0;
-            color: #45526b;
-            font-style: italic;
+            color: #4f4f4f;
+            background: #f6f5f3;
+            border-radius: 18px;
         }
         .footer {
             text-align: center;
             margin-top: 24px;
-            color: #6d6e6f;
+            color: #6b6b6b;
             font-size: 13px;
         }
         .footer p {
-            color: #6d6e6f;
+            color: #6b6b6b;
             margin: 0 0 6px 0;
         }
         .muted {
-            color: #6d6e6f;
+            color: #6b6b6b;
             font-size: 14px;
         }
     </style>
@@ -114,27 +109,23 @@
     <div class="container">
         <div class="card">
             <div class="logo">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                        <td align="left" valign="middle">
-                            {% if site_url %}
-                            <img src="{{ site_url }}/brand/stori-cymru-logo-white.png" alt="{{ org_name }}" height="46" style="display: block; height: 46px; width: auto; border: 0; color: #ffffff; font-size: 20px; font-weight: 800;">
-                            {% else %}
-                            <h1>{{ org_name }}</h1>
-                            {% endif %}
-                        </td>
-                        <td align="right" valign="middle" class="product">Adborth</td>
-                    </tr>
-                </table>
+                {% if site_url %}
+                <img src="{{ site_url }}/brand/adborth-lockup-white.png" alt="Adborth" height="38" style="display: block; height: 38px; width: auto; border: 0; color: #ffffff; font-size: 26px; font-weight: 800;">
+                {% else %}
+                <h1>Adborth</h1>
+                {% endif %}
             </div>
             <div class="content">
                 {% block content %}{% endblock %}
             </div>
         </div>
         <div class="footer">
-            <p>Adborth · © {{ year }} {{ org_name }}</p>
+            {% if site_url %}
+            <img src="{{ site_url }}/brand/stori-cymru-logo-red.png" alt="Stori Cymru" height="34" style="height: 34px; width: auto; border: 0; margin: 4px 0 10px 0;">
+            {% endif %}
+            <p>Adborth · video review and sign-off by Stori Cymru</p>
             <p class="muted">
-                You're receiving this email because you have an account on {{ org_name }}.
+                You're receiving this email because you have an account on {{ org_name }}. © {{ year }}
             </p>
         </div>
     </div>

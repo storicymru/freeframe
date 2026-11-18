@@ -29,7 +29,7 @@ export function AuthBrandingHeader() {
         <img
           src={displayLogo}
           alt={orgName}
-          className="h-12 mx-auto mb-3 object-contain"
+          className="h-16 mx-auto mb-4 object-contain"
           onError={() => setLogoErrored(true)}
         />
       ) : (
@@ -39,7 +39,7 @@ export function AuthBrandingHeader() {
           className="h-12 mx-auto mb-3 object-contain"
         />
       )}
-      <h1 className="text-xl font-semibold text-text-primary">{orgName}</h1>
+      <h1 className="text-3xl uppercase leading-none text-text-primary">{orgName}</h1>
     </div>
   )
 }

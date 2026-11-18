@@ -21,24 +21,35 @@ const INTRO_MS = 2200
  * their device for less motion.
  */
 function AdborthIntro() {
+  // The mark draws itself in the order it reads: the speech bubble, the play
+  // button inside it, then the name.
   return (
-    <div className="flex flex-col items-center" aria-live="polite">
+    <div className="flex flex-col items-center text-white" aria-live="polite">
       <style>{`
-        @keyframes adborth-mark { 0% { opacity: 0; transform: scale(.72) rotate(-8deg) } 60% { opacity: 1; transform: scale(1.05) rotate(0) } 100% { opacity: 1; transform: scale(1) } }
-        @keyframes adborth-rise { 0% { opacity: 0; transform: translateY(10px) } 100% { opacity: 1; transform: translateY(0) } }
+        @keyframes adborth-pop { 0% { opacity: 0; transform: scale(.6) } 70% { opacity: 1; transform: scale(1.06) } 100% { opacity: 1; transform: scale(1) } }
+        @keyframes adborth-play { 0% { opacity: 0; transform: translateX(-6px) scale(.7) } 100% { opacity: 1; transform: translateX(0) scale(1) } }
+        @keyframes adborth-rise { 0% { opacity: 0; transform: translateY(12px) } 100% { opacity: 1; transform: translateY(0) } }
         @keyframes adborth-bar { 0% { transform: scaleX(0) } 100% { transform: scaleX(1) } }
-        .adborth-mark { animation: adborth-mark .7s cubic-bezier(.2,.8,.2,1) both }
-        .adborth-name { animation: adborth-rise .5s ease-out .45s both }
-        .adborth-line { animation: adborth-rise .5s ease-out .8s both }
+        .adborth-bubble { transform-origin: 40% 80%; animation: adborth-pop .6s cubic-bezier(.2,.8,.2,1) both }
+        .adborth-play { transform-box: fill-box; transform-origin: center; animation: adborth-play .35s ease-out .5s both }
+        .adborth-name { animation: adborth-rise .45s ease-out .7s both }
+        .adborth-line { animation: adborth-rise .45s ease-out .95s both }
         .adborth-bar { transform-origin: left; animation: adborth-bar 1.9s ease-in-out .2s both }
-        @media (prefers-reduced-motion: reduce) { .adborth-mark, .adborth-name, .adborth-line, .adborth-bar { animation: none } }
+        @media (prefers-reduced-motion: reduce) { .adborth-bubble, .adborth-play, .adborth-name, .adborth-line, .adborth-bar { animation: none } }
       `}</style>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={withBasePath('/brand/stori-cymru-mark.svg')} alt="Stori Cymru" width={84} height={84} className="adborth-mark h-[84px] w-[84px]" />
-      <p className="adborth-name font-display mt-5 text-3xl text-text-primary">Adborth</p>
-      <p className="adborth-line mt-1.5 text-sm text-text-secondary">Your videos, your feedback, in one place.</p>
-      <div className="mt-6 h-0.5 w-40 overflow-hidden rounded-full bg-bg-tertiary">
-        <div className="adborth-bar h-full w-full bg-accent" />
+      <svg width="112" height="112" viewBox="16 10 76 76" role="img" aria-label="Adborth">
+        <g transform="translate(2 -3)" fill="currentColor">
+          <g className="adborth-bubble">
+            <path fillRule="evenodd" d="M16 50a34 34 0 1 0 68 0a34 34 0 1 0-68 0ZM28 50a22 22 0 1 0 44 0a22 22 0 1 0-44 0Z" />
+            <path d="M44.10 83.48 L21.06 87.04 Q25.5 79 22.15 69.50 Z" />
+          </g>
+          <path className="adborth-play" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" d="M45.5 40.5 L45.5 59.5 L61 50 Z" />
+        </g>
+      </svg>
+      <p className="adborth-name font-display mt-6 text-5xl uppercase leading-none">Adborth</p>
+      <p className="adborth-line mt-3 text-sm text-white/75">Your videos, your feedback, in one place.</p>
+      <div className="mt-8 h-1 w-44 overflow-hidden rounded-full bg-white/15">
+        <div className="adborth-bar h-full w-full rounded-full bg-accent" />
       </div>
     </div>
   )
@@ -95,8 +106,8 @@ export default function PortalEnterPage({ params }: { params: Promise<{ token: s
 
   const showIntro = !failed && !(teamUser && !confirmed)
   return (
-    <div className="min-h-dvh bg-bg-primary flex items-center justify-center px-4">
-      <div className={showIntro ? 'w-full max-w-sm text-center' : 'w-full max-w-sm rounded-xl border border-border bg-bg-secondary p-6 text-center shadow-xl'}>
+    <div className={`min-h-dvh flex items-center justify-center px-4 ${showIntro ? 'bg-[#1b365d]' : 'bg-bg-primary'}`}>
+      <div className={showIntro ? 'w-full max-w-sm text-center' : 'w-full max-w-sm rounded-3xl bg-bg-secondary p-7 text-center shadow-sm'}>
         {teamUser && !confirmed ? (
           <>
             <h1 className="text-base font-semibold text-text-primary">This is a client&apos;s sign-in link</h1>

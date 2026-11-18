@@ -30,11 +30,11 @@ export function PortalShell({ viewerName, children }: { viewerName?: string; chi
   usePortalSessionKeepAlive()
   return (
     <div className="min-h-dvh bg-bg-primary text-text-primary">
-      <header className="sticky top-0 z-10 border-b border-border bg-bg-secondary/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
+      <header className="surface-navy sticky top-0 z-10 bg-bg-secondary">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-3 min-w-0">
             <ShareBrandMark theme="dark" />
-            <span className="hidden sm:inline font-display text-sm text-text-secondary truncate">{orgName}</span>
+            <span className="hidden sm:inline font-display text-xl uppercase leading-none text-text-primary truncate">{orgName}</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {viewerName && <span className="hidden sm:inline text-sm text-text-secondary truncate max-w-[14rem]">{viewerName}</span>}
