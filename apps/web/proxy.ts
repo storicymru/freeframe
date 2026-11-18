@@ -4,7 +4,8 @@ import { withBasePath } from './lib/base-path'
 
 // /connect checks the session itself: it has to keep what the desktop app
 // asked for across a sign-in, which a redirect from here would drop.
-const PUBLIC_ROUTES = ['/login', '/setup', '/connect']
+// /auth/cylch is where Cylch sends someone it is signing in: they have no session yet.
+const PUBLIC_ROUTES = ['/login', '/setup', '/connect', '/auth/cylch']
 // /portal/enter/ is the one-time sign-in link from a client's invitation.
 const PUBLIC_PREFIXES = ['/invite/', '/share/', '/portal/enter/']
 

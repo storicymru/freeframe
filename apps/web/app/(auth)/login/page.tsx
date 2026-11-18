@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { getAccessToken } from '@/lib/auth'
 import { safeInternalPath } from '@/lib/safe-redirect'
 import { LoginForm } from '@/components/auth/login-form'
+import { CylchSignInButton } from '@/components/auth/cylch-sign-in'
 import { PoweredByBadge } from '@/components/shared/powered-by-badge'
 import type { SetupStatus } from '@/types'
 
@@ -39,6 +40,8 @@ export default function LoginPage() {
   return (
     <>
       {/* The branded logo + org name live in the (auth) layout, so every auth screen gets them */}
+      {/* Only where Cylch is connected; the team's way in. */}
+      <CylchSignInButton />
       <LoginForm />
 
       {/* Powered by FreeFrame */}
