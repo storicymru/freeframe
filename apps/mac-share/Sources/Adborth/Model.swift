@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 /// What the whole app knows: who is signed in, their projects, the files
@@ -55,10 +56,72 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: Signing in through the browser
+
+    /// The sign-in this app has open in the browser, if any.
+    @Published var browserSignIn: BrowserSignIn?
+    @Published var signInError: String?
+
+    struct BrowserSignIn { let verifier: String; let state: String; let url: URL }
+
+    private static func randomToken(_ bytes: Int) -> String {
+        var data = Data(count: bytes)
+        _ = data.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, bytes, $0.baseAddress!) }
+        return data.base64URL
+    }
+
+    /// Open the site's "connect this app" page. The browser is where the
+    /// person is already signed in; this app never sees a password or a code.
+    func startBrowserSignIn() {
+        let verifier = Self.randomToken(48)
+        let state = Self.randomToken(24)
+        let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URL
+        var parts = URLComponents(string: API.baseURL.absoluteString + "/connect")
+        parts?.queryItems = [
+            URLQueryItem(name: "challenge", value: challenge),
+            URLQueryItem(name: "state", value: state),
+            URLQueryItem(name: "name", value: Host.current().localizedName ?? "this Mac"),
+        ]
+        guard let url = parts?.url else { return }
+        browserSignIn = BrowserSignIn(verifier: verifier, state: state, url: url)
+        signInError = nil
+        NSWorkspace.shared.open(url)
+    }
+
+    /// The site sending the browser back: adborth://connect?code=…&state=…
+    func finishBrowserSignIn(_ url: URL) async {
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let code = items.first { $0.name == "code" }?.value
+        let state = items.first { $0.name == "state" }?.value
+        // Only the sign-in this app started, and only once.
+        guard let pending = browserSignIn, let code, state == pending.state else {
+            if me == nil { signInError = "That sign-in was not started from this app. Try again." }
+            return
+        }
+        browserSignIn = nil
+        do {
+            try await api.connect(code: code, verifier: pending.verifier)
+            projectsError = nil
+            await loadSession()
+            if me == nil { signInError = projectsError ?? "Could not sign in. Try again." }
+        } catch {
+            signInError = error.localizedDescription
+        }
+    }
+
+    /// Make a project from the app. Returns it, already in the list.
+    func createProject(named name: String) async throws -> Project {
+        let project: Project = try await api.call("POST", "/projects", ["name": name])
+        projects.append(project)
+        projects.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        return project
+    }
+
     func signOut() async {
         await api.signOut()
         me = nil
         projects = []
+        browserSignIn = nil
     }
 
     func enqueue(_ urls: [URL]) {
@@ -84,4 +147,11 @@ final class AppModel: ObservableObject {
     }
 
     func skip(_ file: URL) { pending.removeAll { $0 == file } }
+}
+
+extension Data {
+    /// Base64 as used in web addresses: no padding, no + or /.
+    var base64URL: String {
+        base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
 }

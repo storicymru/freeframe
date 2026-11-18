@@ -39,9 +39,14 @@ def create_access_token(user_id: str, token_version: int = 1) -> str:
     payload = {"sub": str(user_id), "type": "access", "exp": expire, "ver":token_version}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
-def create_refresh_token(user_id: str, token_version: int = 1) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+def create_refresh_token(user_id: str, token_version: int = 1, device: bool = False) -> str:
+    """`device` marks the session of a connected desktop helper: it lives for
+    DEVICE_REFRESH_TOKEN_EXPIRE_DAYS and stays a device session when refreshed."""
+    days = settings.device_refresh_token_expire_days if device else settings.refresh_token_expire_days
+    expire = datetime.now(timezone.utc) + timedelta(days=days)
     payload = {"sub": str(user_id), "type": "refresh", "exp": expire, "ver": token_version}
+    if device:
+        payload["dev"] = True
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 def decode_token(token: str) -> Optional[dict]:

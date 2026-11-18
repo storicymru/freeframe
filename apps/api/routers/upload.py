@@ -951,6 +951,10 @@ def _trigger_processing(asset_id: uuid.UUID, version_id: uuid.UUID):
     """Dispatch Celery task to process the uploaded asset."""
     from ..tasks.transcode_tasks import process_asset
     from ..tasks.celery_app import send_task_safe
+    from ..services.processing_log import record_upload_completed
+    # For the timing report. Before the dispatch, so the queue wait is measured
+    # from here; it never raises.
+    record_upload_completed(version_id)
     send_task_safe(process_asset, str(asset_id), str(version_id))
 
 

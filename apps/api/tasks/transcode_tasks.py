@@ -53,6 +53,9 @@ def process_asset(self, asset_id: str, version_id: str):
         # Reset to processing status before each attempt
         version.processing_status = ProcessingStatus.processing
         db.commit()
+        # The timing report. Its own session, never raises.
+        from ..services.processing_log import record_processing_finished, record_processing_started
+        record_processing_started(version_id)
 
         output_prefix = f"processed/{asset.project_id}/{asset_id}/{version_id}"
         s3 = get_s3_client()
@@ -78,6 +81,7 @@ def process_asset(self, asset_id: str, version_id: str):
 
             version.processing_status = ProcessingStatus.ready
             db.commit()
+            record_processing_finished(version_id, ok=True)
 
             # Publish SSE event (best-effort)
             _publish_event(str(asset.project_id), "transcode_complete", {
@@ -91,6 +95,7 @@ def process_asset(self, asset_id: str, version_id: str):
 
                 version.processing_status = ProcessingStatus.failed
                 db.commit()
+                record_processing_finished(version_id, ok=False, error=redact_presigned_urls(str(exc)))
                 # Every subscriber to the project's stream receives this, not
                 # only the uploader, so never let a presigned URL through.
                 _publish_event(str(asset.project_id), "transcode_failed", {

@@ -243,7 +243,10 @@ def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Session expired, please log in again")
     return TokenResponse(
         access_token=create_access_token(str(user.id), token_version=user.token_version),
-        refresh_token=create_refresh_token(str(user.id), token_version=user.token_version),
+        # A connected desktop helper keeps its long session across refreshes.
+        refresh_token=create_refresh_token(
+            str(user.id), token_version=user.token_version, device=payload.get("dev") is True,
+        ),
         needs_password=user.password_hash is None,
     )
 

@@ -11,7 +11,7 @@ struct APIError: LocalizedError {
 
 struct Tokens: Decodable { let accessToken: String; let refreshToken: String }
 struct Me: Decodable { let email: String; let name: String; let isClient: Bool? }
-struct Project: Decodable, Identifiable, Hashable { let id: String; let name: String; let role: String? }
+struct Project: Decodable, Identifiable, Hashable { let id: String; let name: String; let role: String?; let assetCount: Int? }
 struct AssetVersion: Decodable, Hashable { let id: String; let versionNumber: Int; let processingStatus: String }
 struct Asset: Decodable, Identifiable, Hashable {
     let id: String; let name: String; let assetType: String; let status: String
@@ -25,7 +25,8 @@ struct Nothing: Decodable {}
 
 /// The refresh token, kept in the login keychain.
 enum Keychain {
-    private static let service = "cymru.stori.adborth"
+    // Per app identity, so a test build never touches the real app's session.
+    private static let service = Bundle.main.bundleIdentifier ?? "cymru.stori.adborth"
     private static let account = "refresh-token"
     private static var query: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
@@ -73,6 +74,13 @@ actor API {
 
     func verify(email: String, code: String) async throws {
         let tokens: Tokens = try await call("POST", "/auth/verify-magic-code", ["email": email, "code": code], auth: false)
+        store(tokens)
+    }
+
+    /// Finish a browser sign-in: the one-time code the site handed back, and
+    /// the secret this app started with.
+    func connect(code: String, verifier: String) async throws {
+        let tokens: Tokens = try await call("POST", "/auth/device/token", ["code": code, "code_verifier": verifier], auth: false)
         store(tokens)
     }
 

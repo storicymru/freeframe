@@ -161,3 +161,24 @@ def verify_share_session(token: str, session_id: str) -> bool:
     r = get_redis()
     key = f"{SHARE_SESSION_PREFIX}{token}:{session_id}"
     return r.exists(key) > 0
+
+
+DEVICE_CODE_PREFIX = "device_code:"
+DEVICE_CODE_EXPIRY_SECONDS = 300  # 5 minutes
+
+
+def store_device_code(code: str, payload: str) -> None:
+    """Hold a one-time code that connects a desktop helper to an account."""
+    get_redis().setex(f"{DEVICE_CODE_PREFIX}{code}", DEVICE_CODE_EXPIRY_SECONDS, payload)
+
+
+def take_device_code(code: str):
+    """The payload stored for `code`, removed as it is read, or None. One use:
+    a code that is seen twice has been intercepted or replayed."""
+    r = get_redis()
+    key = f"{DEVICE_CODE_PREFIX}{code}"
+    pipe = r.pipeline()
+    pipe.get(key)
+    pipe.delete(key)
+    value, _ = pipe.execute()
+    return value

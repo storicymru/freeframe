@@ -43,7 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// Final Cut Pro's share destination, a drop on the Dock icon, "Open With".
     func application(_ application: NSApplication, open urls: [URL]) {
-        model.enqueue(urls)
+        // The browser coming back from a sign-in arrives here too.
+        for url in urls where url.scheme?.hasPrefix("adborth") == true {
+            Task { await model.finishBrowserSignIn(url) }
+        }
+        model.enqueue(urls.filter(\.isFileURL))
         showWindow()
     }
 

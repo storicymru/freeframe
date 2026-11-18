@@ -142,6 +142,8 @@ final class UploadJob: ObservableObject, Identifiable {
     @Published private(set) var assetID: String?
     private(set) var started = Date()
     private var parts: [Int: Int64] = [:]
+    /// Progress a second apart, for the speed. Only the last few are kept.
+    private var samples: [(at: Date, sent: Int64)] = []
     private var upload: InitiatedUpload?
     private var task: Task<Void, Never>?
     private let api: API
@@ -162,17 +164,43 @@ final class UploadJob: ObservableObject, Identifiable {
         return URL(string: "\(API.baseURL.absoluteString)/projects/\(project.id)/assets/\(assetID)")
     }
 
+    /// "471.8 of 493.4 MB". The unit follows the file, not the progress, and
+    /// the first number is padded to the width of the second, so the line
+    /// keeps its shape from the first byte to the last.
+    var progressText: String {
+        let gigabytes = total >= 1_000_000_000
+        let unit = gigabytes ? 1_000_000_000.0 : 1_000_000.0
+        let places = gigabytes ? 2 : 1
+        let whole = String(format: "%.\(places)f", Double(total) / unit)
+        var done = String(format: "%.\(places)f", Double(sent) / unit)
+        // A figure space is exactly as wide as a digit.
+        while done.count < whole.count { done = "\u{2007}" + done }
+        return "\(done) of \(whole) \(gigabytes ? "GB" : "MB")"
+    }
+
+    /// Megabytes a second over the last few seconds, or nil before there is
+    /// enough to go on.
+    var rate: Double? {
+        guard let first = samples.first, let last = samples.last else { return nil }
+        let seconds = last.at.timeIntervalSince(first.at)
+        guard seconds >= 2, last.sent > first.sent else { return nil }
+        return Double(last.sent - first.sent) / seconds
+    }
+
+    /// "13.6 MB/s · about 4 min left", in whole minutes so it changes rarely.
+    var rateText: String {
+        guard let rate else { return "" }
+        let speed = String(format: "%.1f MB/s", rate / 1_000_000)
+        let left = Double(total - sent) / rate
+        let time = left < 60 ? "under 1 min left" : "about \(Int((left / 60).rounded(.up))) min left"
+        return "\(speed) · \(time)"
+    }
+
     /// One line on how it is going, for the list and the menu bar.
     var summary: String {
         switch state {
         case .starting: return "Starting…"
-        case .uploading:
-            let elapsed = Date().timeIntervalSince(started)
-            guard elapsed > 3, sent > 0 else { return "\(byteText(sent)) of \(byteText(total))" }
-            let rate = Double(sent) / elapsed
-            let left = Double(total - sent) / rate
-            let time = left < 90 ? "under 2 min left" : "about \(Int((left / 60).rounded())) min left"
-            return "\(byteText(sent)) of \(byteText(total)) · \(byteText(Int64(rate)))/s · \(time)"
+        case .uploading: return progressText
         case .finishing: return "Finishing the upload…"
         case .processing: return "Uploaded. Waiting for it to finish processing, then showing it to the client…"
         case .done: return showToClient ? "Uploaded and shown to the client." : "Uploaded. It is processing on the site."
@@ -248,6 +276,11 @@ final class UploadJob: ObservableObject, Identifiable {
         guard state == .uploading else { return }
         parts[part] = bytes
         sent = min(total, parts.values.reduce(0, +))
+        let now = Date()
+        if samples.last.map({ now.timeIntervalSince($0.at) >= 1 }) ?? true {
+            samples.append((now, sent))
+            samples.removeAll { now.timeIntervalSince($0.at) > 8 }
+        }
     }
 
     /// Wait for the new version to be watchable, then mark the video as needing

@@ -6,6 +6,7 @@ from .comment import Comment, Annotation, CommentAttachment, CommentReaction
 from .approval import Approval
 from .sign_off import SignOff
 from .portal import ProjectClient
+from .processing_run import ProcessingRun
 from .share import ShareLink, AssetShare, ShareLinkActivity, ShareActivityAction, ShareVisibility
 from .metadata import MetadataField, AssetMetadata, Collection, CollectionShare
 from .branding import ProjectBranding, WatermarkSettings

@@ -143,3 +143,21 @@ def purge_now(current_user: User = Depends(require_admin)):
         status="started",
         detail="Retention garbage collection is running in the background; see worker logs for reclaimed counts.",
     )
+
+
+@router.get("/processing-runs")
+def list_processing_runs(
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The timing log: for each recent upload, how long it took to arrive, to
+    wait in the queue and to process. Newest first. Admins only."""
+    if not current_user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can access this endpoint")
+    from ..models.processing_run import ProcessingRun
+    from ..services.processing_log import describe
+
+    limit = max(1, min(int(limit), 1000))
+    runs = db.query(ProcessingRun).order_by(ProcessingRun.created_at.desc()).limit(limit).all()
+    return [describe(run) for run in runs]

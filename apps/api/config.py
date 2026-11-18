@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
+    # A desktop helper (Adborth for Mac) connected through the browser keeps its
+    # session this long from its last use, so it is not signed out every week.
+    device_refresh_token_expire_days: int = 180
     # Live event streams (GET /events/{project_id}). Authorization is checked
     # again for as long as a stream stays open, not only when it connects, so a
     # subscriber who loses access (removed from the project, deactivated, token

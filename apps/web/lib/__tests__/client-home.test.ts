@@ -22,4 +22,15 @@ describe('homePathFor', () => {
     expect(homePathFor({ is_client: true }, '//evil.example')).toBe('/portal')
     expect(homePathFor({ is_client: true }, '/portal/enter/tok')).toBe('/portal')
   })
+
+  it('sends a team account back to /connect when that is where sign-in began', () => {
+    expect(homePathFor({ is_client: false }, '/connect')).toBe('/connect')
+    expect(homePathFor(null, '/connect')).toBe('/connect')
+  })
+
+  it('never sends a client to /connect, and a team account nowhere else it asks for', () => {
+    expect(homePathFor({ is_client: true }, '/connect')).toBe('/portal')
+    expect(homePathFor({ is_client: false }, '/connect/evil')).toBe('/projects')
+    expect(homePathFor({ is_client: false }, '/settings')).toBe('/projects')
+  })
 })

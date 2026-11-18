@@ -5,13 +5,15 @@
  *
  * `from` is the page the sign-in was reached from. A client who followed an
  * emailed link to one video goes back to that video; anything outside the
- * portal is ignored, for a client and for everyone else (as before).
+ * portal is ignored, for a client and for everyone else, with one exception:
+ * /connect, where the desktop app is waiting to be connected.
  */
 export function homePathFor(
   user: { is_client?: boolean } | null | undefined,
   from?: string | null,
 ): string {
-  if (!user?.is_client) return '/projects'
+  // Signing in on the way to connecting the desktop app goes back to that.
+  if (!user?.is_client) return from === '/connect' ? '/connect' : '/projects'
   if (from && (from === '/portal' || from.startsWith('/portal/')) && !from.startsWith('/portal/enter/')) return from
   return '/portal'
 }
