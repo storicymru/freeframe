@@ -79,6 +79,7 @@ enum FinalCutTimeline {
         guard let bundle = runningApp?.bundleIdentifier else { return nil }
         let quoted = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let source = """
+        with timeout of 8 seconds
         tell application id "\(bundle)"
             repeat with aLibrary in libraries
                 repeat with anEvent in events of aLibrary
@@ -89,6 +90,7 @@ enum FinalCutTimeline {
             end repeat
             return ""
         end tell
+        end timeout
         """
         var failure: NSDictionary?
         let answer = NSAppleScript(source: source)?.executeAndReturnError(&failure).stringValue ?? ""
@@ -124,6 +126,7 @@ enum FinalCutTimeline {
         guard range.isValid, range.duration.seconds > 0 else { PanelLog.write("open project: none in the timeline"); return nil }
 
         let source = """
+        with timeout of 8 seconds
         tell application id "\(bundle)"
             set out to ""
             repeat with aLibrary in libraries
@@ -142,6 +145,7 @@ enum FinalCutTimeline {
             end repeat
             return out
         end tell
+        end timeout
         """
         var failure: NSDictionary?
         let answer = NSAppleScript(source: source)?.executeAndReturnError(&failure).stringValue ?? ""
@@ -444,17 +448,6 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             note.stringValue = dropped == nil ? "Open the video in this panel first" : "Open the video in this panel first, then drop the project"
             return
         }
-        var open: FinalCutTimeline.OpenProject?
-        let xml: String
-        if let dropped { xml = dropped } else {
-            guard let project = FinalCutTimeline.openProject(skippingEvent: Self.commentsEvent) else {
-                note.stringValue = "Open your project in Final Cut's timeline first, or drag it onto this panel"
-                return
-            }
-            open = project
-            xml = MarkerBuilder.standIn(name: project.name, frame: project.frame, start: project.start,
-                                        duration: project.duration, dropFrame: project.dropFrame)
-        }
         note.stringValue = "Fetching comments…"
         web.callAsyncJavaScript(Self.commentsScript, arguments: ["assetID": parts[at + 1]], in: nil, in: .page) { [weak self] outcome in
             guard let self else { return }
@@ -468,6 +461,21 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                     MarkerComment(seconds: $0.seconds!, who: $0.who, body: $0.body, replies: $0.replies, done: $0.done)
                 }
                 guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
+                // Final Cut is asked about the open project here, once the click
+                // that started this has long returned. Asked from inside the click,
+                // the panel waits on Final Cut while Final Cut waits on the panel,
+                // and both freeze.
+                var open: FinalCutTimeline.OpenProject?
+                let xml: String
+                if let dropped { xml = dropped } else {
+                    guard let project = FinalCutTimeline.openProject(skippingEvent: Self.commentsEvent) else {
+                        self.note.stringValue = "Open your project in Final Cut's timeline first, or drag it onto this panel"
+                        return
+                    }
+                    open = project
+                    xml = MarkerBuilder.standIn(name: project.name, frame: project.frame, start: project.start,
+                                                duration: project.duration, dropFrame: project.dropFrame)
+                }
                 let home = open.map { (library: $0.library, event: "") } ?? MarkerBuilder.projectName(in: xml).flatMap { FinalCutTimeline.home(ofProject: $0) }
                 let result = try MarkerBuilder.addMarkers(to: xml, comments: comments, library: home?.library, event: Self.commentsEvent,
                                                           clipOnly: open != nil)
