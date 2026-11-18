@@ -66,22 +66,27 @@ export default function ConnectPage() {
   const [appLink, setAppLink] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    const asked = readPending()
-    setPending(asked)
-    if (!asked) {
-      setStep('nothing')
-      return
-    }
-    if (!getAccessToken()) {
-      setStep('signed-out')
-      return
-    }
-    api.get<{ name: string; email: string; is_client?: boolean }>('/auth/me')
-      .then((me) => {
-        setWho({ name: me.name, email: me.email })
-        setStep(me.is_client ? 'client' : 'ask')
+    let cancelled = false
+    // Everything is decided inside one promise chain, so the state is set from
+    // a callback and never in the body of the effect.
+    Promise.resolve(readPending())
+      .then(async (asked): Promise<[Pending | null, Step, { name: string; email: string } | null]> => {
+        if (!asked) return [null, 'nothing', null]
+        if (!getAccessToken()) return [asked, 'signed-out', null]
+        try {
+          const me = await api.get<{ name: string; email: string; is_client?: boolean }>('/auth/me')
+          return [asked, me.is_client ? 'client' : 'ask', { name: me.name, email: me.email }]
+        } catch {
+          return [asked, 'signed-out', null]
+        }
       })
-      .catch(() => setStep('signed-out'))
+      .then(([asked, next, me]) => {
+        if (cancelled) return
+        setPending(asked)
+        setWho(me)
+        setStep(next)
+      })
+    return () => { cancelled = true }
   }, [])
 
   const connect = async () => {

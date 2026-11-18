@@ -1,7 +1,10 @@
+import logging
 import redis
 import secrets
 from typing import Optional
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 # Redis client
 _redis_client: Optional[redis.Redis] = None
@@ -182,3 +185,31 @@ def take_device_code(code: str):
     pipe.delete(key)
     value, _ = pipe.execute()
     return value
+
+
+def _redis_glob_escape(value: str) -> str:
+    """Escape the characters a redis MATCH pattern treats specially."""
+    return "".join("\\" + c if c in "\\*?[]" else c for c in value)
+
+
+def delete_share_sessions(token: str) -> None:
+    """End every password session opened on this share link.
+
+    Called when what a session was granted under goes away: the password
+    changes or is cleared, the link is disabled, or it is deleted. Without
+    this a guest who verified the old password keeps access for the rest of
+    the session's hour, and across a disable and re-enable.
+
+    A redis outage is logged and swallowed, like the rate limiter's: the change
+    to the link itself has already been saved and must not fail on this.
+    """
+    try:
+        r = get_redis()
+        pattern = f"{SHARE_SESSION_PREFIX}{_redis_glob_escape(token)}:*"
+        keys = list(r.scan_iter(match=pattern, count=500))
+        if keys:
+            r.delete(*keys)
+    except Exception as exc:
+        logger.warning(
+            "Could not end the share sessions of a share link: %s", type(exc).__name__,
+        )

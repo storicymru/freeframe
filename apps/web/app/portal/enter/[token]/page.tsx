@@ -69,18 +69,18 @@ export default function PortalEnterPage({ params }: { params: Promise<{ token: s
   React.useEffect(() => {
     let cancelled = false
     const existing = getAccessToken()
-    if (!existing) {
+    // Answered through a promise in either case, so the state is set from a
+    // callback and never in the body of the effect.
+    const who: Promise<{ is_client?: boolean; name?: string; email?: string } | null> = existing
+      ? fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${existing}` } })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null)
+      : Promise.resolve(null)
+    who.then((me) => {
+      if (cancelled) return
+      if (me && !me.is_client) setTeamUser(me.name || me.email || 'a team account')
       setChecked(true)
-      return
-    }
-    fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${existing}` } })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((me) => {
-        if (cancelled) return
-        if (me && !me.is_client) setTeamUser(me.name || me.email || 'a team account')
-        setChecked(true)
-      })
-      .catch(() => { if (!cancelled) setChecked(true) })
+    })
     return () => { cancelled = true }
   }, [])
 
