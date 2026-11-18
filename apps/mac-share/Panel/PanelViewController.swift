@@ -101,6 +101,68 @@ enum FinalCutTimeline {
         return (URL(fileURLWithPath: lines[0], isDirectory: true), lines[1])
     }
 
+    struct OpenProject {
+        var name: String
+        var library: URL
+        var frame: Rational
+        var start: Rational
+        var duration: Rational
+        var dropFrame: Bool
+    }
+
+    /// The project open in the timeline. Final Cut tells an extension only how
+    /// long the open project is and where its timecode starts, so that is matched
+    /// against every project in the open libraries. Copies the panel made itself
+    /// (in `skippingEvent`) are passed over, as they are the same length as their
+    /// originals. Nil when nothing is open or Final Cut will not say.
+    static func openProject(skippingEvent: String) -> OpenProject? {
+        guard let timeline = object(), let bundle = runningApp?.bundleIdentifier else { return nil }
+        let selector = Selector(("sequenceTimeRange"))
+        guard timeline.responds(to: selector), let method = timeline.method(for: selector) else { return nil }
+        typealias Getter = @convention(c) (AnyObject, Selector) -> CMTimeRange
+        let range = unsafeBitCast(method, to: Getter.self)(timeline, selector)
+        guard range.isValid, range.duration.seconds > 0 else { PanelLog.write("open project: none in the timeline"); return nil }
+
+        let source = """
+        tell application id "\(bundle)"
+            set out to ""
+            repeat with aLibrary in libraries
+                set p to POSIX path of (file of aLibrary as alias)
+                repeat with anEvent in events of aLibrary
+                    repeat with aProject in projects of anEvent
+                        try
+                            set sq to sequence of aProject
+                            set d to duration of sq
+                            set b to start time of sq
+                            set f to frame duration of sq
+                            set out to out & p & tab & (name of anEvent) & tab & (name of aProject) & tab & (value of d) & tab & (timescale of d) & tab & (value of b) & tab & (timescale of b) & tab & (value of f) & tab & (timescale of f) & tab & ((timecode format of sq) as text) & linefeed
+                        end try
+                    end repeat
+                end repeat
+            end repeat
+            return out
+        end tell
+        """
+        var failure: NSDictionary?
+        let answer = NSAppleScript(source: source)?.executeAndReturnError(&failure).stringValue ?? ""
+        if answer.isEmpty { PanelLog.write("open project: Final Cut listed none \(failure.map { "\($0)" } ?? "")"); return nil }
+
+        var found: [OpenProject] = []
+        for line in answer.split(separator: "\n") {
+            let cells = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+            guard cells.count == 10, cells[1] != skippingEvent else { continue }
+            let numbers = cells[3...8].compactMap { Double($0) }.map { Int64($0.rounded()) }
+            guard numbers.count == 6, numbers[1] > 0, numbers[3] > 0, numbers[5] > 0, numbers[4] > 0 else { continue }
+            let duration = Rational(numbers[0], numbers[1]), start = Rational(numbers[2], numbers[3]), frame = Rational(numbers[4], numbers[5])
+            guard abs(duration.seconds - range.duration.seconds) < frame.seconds / 2,
+                  abs(start.seconds - range.start.seconds) < frame.seconds / 2 else { continue }
+            found.append(OpenProject(name: cells[2], library: URL(fileURLWithPath: cells[0], isDirectory: true), frame: frame,
+                                     start: start, duration: duration, dropFrame: !cells[9].lowercased().contains("non")))
+        }
+        PanelLog.write("open project: \(found.count) of that length\(found.first.map { ", taking “\($0.name)”" } ?? "")")
+        return found.first
+    }
+
     private static func time(_ timeline: NSObject, _ name: String) -> CMTime? {
         let selector = Selector((name))
         guard timeline.responds(to: selector), let method = timeline.method(for: selector) else { return nil }
@@ -202,6 +264,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
 
     private let follow = NSButton(checkboxWithTitle: "Timeline follows the player", target: nil, action: nil)
     private let note = NSTextField(labelWithString: "")
+    private let send = NSButton(title: "Comments to Final Cut", target: nil, action: nil)
 
     /// Where Adborth lives. `defaults write cymru.stori.adborth.panel site <url>` points it elsewhere.
     private var site: URL {
@@ -250,7 +313,13 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         note.alignment = .right
         note.preferredMaxLayoutWidth = 440
         note.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let bar = NSStackView(views: [follow, NSView(), note])
+        send.target = self
+        send.action = #selector(sendComments)
+        send.controlSize = .small
+        send.bezelStyle = .rounded
+        send.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        send.toolTip = "Puts this video's comments into Final Cut as a marker clip for the project open in the timeline. Drag the project onto this panel instead to also get a copy of it with the markers on its own clips."
+        let bar = NSStackView(views: [follow, send, NSView(), note])
         bar.orientation = .horizontal
         bar.alignment = .centerY
         bar.edgeInsets = NSEdgeInsets(top: 5, left: 12, bottom: 5, right: 12)
@@ -297,6 +366,12 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 let name = (try? String(contentsOf: home, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 try? FileManager.default.removeItem(at: home)
                 _ = FinalCutTimeline.home(ofProject: name)
+            }
+            // And a file named open asks Final Cut which project is in the timeline.
+            let open = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("open")
+            if FileManager.default.fileExists(atPath: open.path) {
+                try? FileManager.default.removeItem(at: open)
+                _ = FinalCutTimeline.openProject(skippingEvent: Self.commentsEvent)
             }
             // And a file named snap asks the page for a picture of itself.
             let snap = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("snap")
@@ -353,11 +428,29 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
 
     /// A project was dropped on the panel: give Final Cut a copy of it with the
     /// open video's comments on it as markers.
-    private func addComments(toProject xml: String) {
+    private func addComments(toProject dropped: String) { addComments(dropped: dropped) }
+
+    /// The button: the same comments for the project open in the timeline, with
+    /// no drag. Final Cut hands a project over only when it is dragged, so this
+    /// way gives the marker clip alone, not a copy of the project.
+    @objc private func sendComments() { addComments(dropped: nil) }
+
+    private func addComments(dropped: String?) {
         let parts = web.url?.pathComponents ?? []
         guard let at = parts.firstIndex(of: "assets"), at + 1 < parts.count, UUID(uuidString: parts[at + 1]) != nil else {
-            note.stringValue = "Open the video in this panel first, then drop the project"
+            note.stringValue = dropped == nil ? "Open the video in this panel first" : "Open the video in this panel first, then drop the project"
             return
+        }
+        var open: FinalCutTimeline.OpenProject?
+        let xml: String
+        if let dropped { xml = dropped } else {
+            guard let project = FinalCutTimeline.openProject(skippingEvent: Self.commentsEvent) else {
+                note.stringValue = "Open your project in Final Cut's timeline first, or drag it onto this panel"
+                return
+            }
+            open = project
+            xml = MarkerBuilder.standIn(name: project.name, frame: project.frame, start: project.start,
+                                        duration: project.duration, dropFrame: project.dropFrame)
         }
         note.stringValue = "Fetching comments…"
         web.callAsyncJavaScript(Self.commentsScript, arguments: ["assetID": parts[at + 1]], in: nil, in: .page) { [weak self] outcome in
@@ -372,9 +465,10 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                     MarkerComment(seconds: $0.seconds!, who: $0.who, body: $0.body, replies: $0.replies, done: $0.done)
                 }
                 guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
-                let home = MarkerBuilder.projectName(in: xml).flatMap { FinalCutTimeline.home(ofProject: $0) }
-                let result = try MarkerBuilder.addMarkers(to: xml, comments: comments, library: home?.library, event: Self.commentsEvent)
-                let safe = result.projectName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+                let home = open.map { (library: $0.library, event: "") } ?? MarkerBuilder.projectName(in: xml).flatMap { FinalCutTimeline.home(ofProject: $0) }
+                let result = try MarkerBuilder.addMarkers(to: xml, comments: comments, library: home?.library, event: Self.commentsEvent,
+                                                          clipOnly: open != nil)
+                let safe = (open.map { $0.name + " – Adborth markers" } ?? result.projectName).replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
                 let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\(safe).fcpxml")
                 try result.xml.write(to: file, atomically: true, encoding: .utf8)
                 PanelLog.write("wrote \(file.path): \(result.placed) markers")
@@ -383,7 +477,9 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 func count(_ n: Int, _ one: String, _ many: String) -> String { "\(n) \(n == 1 ? one : many)" }
                 let replies = timed.reduce(0) { $0 + $1.replies.count }
                 let resolved = timed.filter(\.done).count
-                var lines = ["Sent to Final Cut: “\(result.projectName)”" + (home != nil ? " in the event “\(Self.commentsEvent)”" : "") + ", with a marker clip beside it.",
+                let place = home != nil ? " in the event “\(Self.commentsEvent)”" : ""
+                var lines = [open.map { "Sent to Final Cut: the marker clip “\($0.name) – Adborth markers”\(place)." }
+                                ?? "Sent to Final Cut: “\(result.projectName)”\(place), with a marker clip beside it.",
                              count(comments.count, "comment", "comments") + " as numbered markers"
                                 + (replies > 0 ? ", " + count(replies, "reply", "replies") + " in the notes" : "")
                                 + (resolved > 0 ? ", \(resolved) already resolved (ticked)" : "") + "."]

@@ -102,6 +102,32 @@ enum MarkerBuilder {
         return lines
     }
 
+    /// A bare project of the right name, length and frame rate, for when the real
+    /// one was not dragged in: enough to build the marker clip from.
+    static func standIn(name: String, frame: Rational, start: Rational, duration: Rational, dropFrame: Bool) -> String {
+        let root = XMLElement(name: "fcpxml")
+        func attribute(_ name: String, _ value: String) -> XMLNode { XMLNode.attribute(withName: name, stringValue: value) as! XMLNode }
+        root.addAttribute(attribute("version", "1.11"))
+        let format = XMLElement(name: "format")
+        for (key, value) in [("id", "r1"), ("frameDuration", frame.text), ("width", "1920"), ("height", "1080")] { format.addAttribute(attribute(key, value)) }
+        let resources = XMLElement(name: "resources")
+        resources.addChild(format)
+        let gap = XMLElement(name: "gap")
+        for (key, value) in [("name", "Gap"), ("offset", start.text), ("start", "3600s"), ("duration", duration.text)] { gap.addAttribute(attribute(key, value)) }
+        let spine = XMLElement(name: "spine")
+        spine.addChild(gap)
+        let sequence = XMLElement(name: "sequence")
+        for (key, value) in [("format", "r1"), ("duration", duration.text), ("tcStart", start.text), ("tcFormat", dropFrame ? "DF" : "NDF"),
+                             ("audioLayout", "stereo"), ("audioRate", "48k")] { sequence.addAttribute(attribute(key, value)) }
+        sequence.addChild(spine)
+        let project = XMLElement(name: "project")
+        project.addAttribute(attribute("name", name))
+        project.addChild(sequence)
+        root.addChild(resources)
+        root.addChild(project)
+        return XMLDocument(rootElement: root).xmlString
+    }
+
     /// The name of the project in a dragged FCPXML, if it holds one.
     static func projectName(in fcpxml: String) -> String? {
         guard let document = try? XMLDocument(xmlString: fcpxml, options: []),
@@ -111,7 +137,7 @@ enum MarkerBuilder {
 
     static func addMarkers(to fcpxml: String, comments: [MarkerComment], nameSuffix: String = " – Adborth comments",
                            clipSuffix: String = " – Adborth markers",
-                           library: URL? = nil, event: String? = nil) throws -> MarkerResult {
+                           library: URL? = nil, event: String? = nil, clipOnly: Bool = false) throws -> MarkerResult {
         let document = try XMLDocument(xmlString: fcpxml, options: [.nodePreserveWhitespace])
         guard let project = try document.nodes(forXPath: "//project").first as? XMLElement,
               let sequence = project.elements(forName: "sequence").first,
@@ -354,6 +380,9 @@ enum MarkerBuilder {
                 parent.insertChild(options, at: 0)
             }
         }
+
+        // Built from a stand-in: only the marker clip is wanted, not an empty project.
+        if clipOnly, markerClip != nil { project.detach() }
 
         document.isStandalone = false
         return MarkerResult(xml: document.xmlString(options: [.nodePrettyPrint]), projectName: name, placed: placed, alreadyThere: alreadyThere)
