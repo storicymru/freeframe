@@ -198,6 +198,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
 
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 720))
         root.autoresizingMask = [.width, .height]   // follow Final Cut's window, whatever its size
+        root.wantsLayer = true
         UserDefaults.standard.register(defaults: ["follow": true])
         follow.state = UserDefaults.standard.bool(forKey: "follow") ? .on : .off
         follow.target = self
@@ -248,6 +249,18 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
                 try? FileManager.default.removeItem(at: moved)
                 try? FileManager.default.moveItem(at: handoff, to: moved)
                 self.handToFinalCut(moved)
+            }
+            // And a file named snap asks the page for a picture of itself.
+            let snap = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("snap")
+            if let self, FileManager.default.fileExists(atPath: snap.path) {
+                try? FileManager.default.removeItem(at: snap)
+                self.web.takeSnapshot(with: nil) { image, error in
+                    let out = snap.deletingLastPathComponent().appendingPathComponent("snap.png")
+                    if let tiff = image?.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                        try? png.write(to: out)
+                    }
+                    PanelLog.write("snapshot: \(image.map { "\($0.size)" } ?? "none") \(error.map { "\($0)" } ?? ""); web frame \(self.web.frame), layer \(String(describing: self.web.layer)), window \(String(describing: self.view.window)), occlusion visible \(self.view.window?.occlusionState.contains(.visible) ?? false)")
+                }
             }
             guard let self, let script = try? String(contentsOf: probe, encoding: .utf8) else { return }
             try? FileManager.default.removeItem(at: probe)
