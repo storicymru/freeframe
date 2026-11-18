@@ -38,7 +38,7 @@ done
 mkdir -p "$APPEX/Contents/Frameworks"
 cp -R "$FCP_FRAMEWORK/ProExtension.framework" "$APPEX/Contents/Frameworks/"
 swiftc -O -module-name AdborthPanel -parse-as-library -application-extension \
-  Panel/PanelViewController.swift -o "$APPEX/Contents/MacOS/AdborthPanel" \
+  Panel/PanelViewController.swift Panel/Markers.swift -o "$APPEX/Contents/MacOS/AdborthPanel" \
   -F "$APPEX/Contents/Frameworks" -framework ProExtension \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -Xlinker -e -Xlinker _NSExtensionMain

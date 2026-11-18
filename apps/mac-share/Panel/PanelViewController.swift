@@ -95,6 +95,40 @@ enum FinalCutTimeline {
     }
 }
 
+/// The page, which also takes a Final Cut project dropped on it. Anything else
+/// dragged in is the page's own business.
+final class ProjectDropWebView: WKWebView {
+    static let projectTypes: [NSPasteboard.PasteboardType] =
+        (["com.apple.finalcutpro.xml"] + (8...16).map { "com.apple.finalcutpro.xml.v1-\($0)" }).map { NSPasteboard.PasteboardType($0) }
+    var onProject: ((String) -> Void)?
+
+    private func project(in sender: NSDraggingInfo) -> String? {
+        let board = sender.draggingPasteboard
+        guard let type = board.availableType(from: Self.projectTypes.reversed()) else { return nil }
+        if let text = board.string(forType: type) { return text }
+        return board.data(forType: type).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let types = sender.draggingPasteboard.types?.map(\.rawValue) ?? []
+        PanelLog.write("drag in: \(types)")
+        return sender.draggingPasteboard.availableType(from: Self.projectTypes) != nil ? .copy : super.draggingEntered(sender)
+    }
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        sender.draggingPasteboard.availableType(from: Self.projectTypes) != nil ? .copy : super.draggingUpdated(sender)
+    }
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        sender.draggingPasteboard.availableType(from: Self.projectTypes) != nil ? true : super.prepareForDragOperation(sender)
+    }
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard sender.draggingPasteboard.availableType(from: Self.projectTypes) != nil else { return super.performDragOperation(sender) }
+        guard let xml = project(in: sender) else { PanelLog.write("drop: no readable project"); return false }
+        PanelLog.write("drop: \(xml.count) characters of FCPXML")
+        onProject?(xml)
+        return true
+    }
+}
+
 @objc(AdborthPanelViewController)
 final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     /// Tells the panel whenever the Adborth player lands on a new moment:
@@ -139,7 +173,7 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         return URL(string: saved).flatMap { $0.scheme == "https" ? $0 : nil } ?? URL(string: "https://adborth.stori.cymru")!
     }
 
-    private var web: WKWebView!
+    private var web: ProjectDropWebView!
     private let status = NSTextField(labelWithString: "")
 
     override func loadView() {
@@ -148,7 +182,9 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
             WKUserScript(source: Self.followScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController.add(self, name: "adborth")
         config.websiteDataStore = .default()   // kept on disk: sign in once
-        web = WKWebView(frame: .zero, configuration: config)
+        web = ProjectDropWebView(frame: .zero, configuration: config)
+        web.registerForDraggedTypes(ProjectDropWebView.projectTypes)
+        web.onProject = { [weak self] xml in self?.addComments(toProject: xml) }
         web.navigationDelegate = self
         web.uiDelegate = self
         web.allowsBackForwardNavigationGestures = true
@@ -205,6 +241,14 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         // is run in the page and its answer logged, without restarting the panel.
         let probe = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("probe.js")
         Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            // And a file named handoff.fcpxml is given to Final Cut, to test that hand-over alone.
+            let handoff = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("handoff.fcpxml")
+            if let self, FileManager.default.fileExists(atPath: handoff.path) {
+                let moved = handoff.deletingLastPathComponent().appendingPathComponent("handoff-test.fcpxml")
+                try? FileManager.default.removeItem(at: moved)
+                try? FileManager.default.moveItem(at: handoff, to: moved)
+                self.handToFinalCut(moved)
+            }
             guard let self, let script = try? String(contentsOf: probe, encoding: .utf8) else { return }
             try? FileManager.default.removeItem(at: probe)
             self.web.evaluateJavaScript(script) { result, error in
@@ -213,6 +257,80 @@ final class AdborthPanelViewController: NSViewController, WKNavigationDelegate, 
         }
         NSLog("AdborthPanel: opening %@", site.absoluteString)
         web.load(URLRequest(url: site))
+    }
+
+    /// Asks the page (which holds the sign-in) for the open video's comments.
+    private static let commentsScript = """
+    const api = location.origin + '/api';
+    async function get(path, again) {
+      const answer = await fetch(api + path, { headers: { Authorization: 'Bearer ' + (localStorage.getItem('ff_access_token') || '') } });
+      if (answer.status === 401 && !again) {
+        const fresh = await fetch(api + '/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: localStorage.getItem('ff_refresh_token') || '' }) });
+        if (!fresh.ok) throw new Error('signed-out');
+        const tokens = await fresh.json();
+        localStorage.setItem('ff_access_token', tokens.access_token);
+        localStorage.setItem('ff_refresh_token', tokens.refresh_token);
+        return get(path, true);
+      }
+      if (!answer.ok) throw new Error('Adborth answered ' + answer.status);
+      return answer.json();
+    }
+    const asset = await get('/assets/' + assetID);
+    const version = asset.latest_version && asset.latest_version.id;
+    const comments = await get('/assets/' + assetID + '/comments' + (version ? '?version_id=' + version : ''));
+    const who = c => (c.author && c.author.name) || (c.guest_author && c.guest_author.name) || 'Someone';
+    return JSON.stringify({ name: asset.name, comments: comments.map(c => ({
+      seconds: c.timecode_start, who: who(c), body: c.body, done: !!c.resolved,
+      replies: (c.replies || []).map(r => who(r) + ': ' + r.body)
+    })) });
+    """
+
+    /// A project was dropped on the panel: give Final Cut a copy of it with the
+    /// open video's comments on it as markers.
+    private func addComments(toProject xml: String) {
+        let parts = web.url?.pathComponents ?? []
+        guard let at = parts.firstIndex(of: "assets"), at + 1 < parts.count, UUID(uuidString: parts[at + 1]) != nil else {
+            note.stringValue = "Open the video in this panel first, then drop the project"
+            return
+        }
+        note.stringValue = "Fetching comments…"
+        web.callAsyncJavaScript(Self.commentsScript, arguments: ["assetID": parts[at + 1]], in: nil, in: .page) { [weak self] outcome in
+            guard let self else { return }
+            do {
+                struct Thread: Decodable { var seconds: Double?; var who: String; var body: String; var done: Bool; var replies: [String] }
+                struct Answer: Decodable { var name: String; var comments: [Thread] }
+                guard let text = try outcome.get() as? String else { throw MarkerError.notAProject }
+                let answer = try JSONDecoder().decode(Answer.self, from: Data(text.utf8))
+                let timed = answer.comments.filter { $0.seconds != nil }
+                let comments = timed.map {
+                    MarkerComment(seconds: $0.seconds!, title: "\($0.who): \($0.body)", note: $0.replies.joined(separator: "\n"), done: $0.done)
+                }
+                guard !comments.isEmpty else { self.note.stringValue = "No timed comments on \(answer.name)"; return }
+                let result = try MarkerBuilder.addMarkers(to: xml, comments: comments)
+                let safe = result.projectName.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+                let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\(safe).fcpxml")
+                try result.xml.write(to: file, atomically: true, encoding: .utf8)
+                PanelLog.write("wrote \(file.path): \(result.placed) markers")
+                self.handToFinalCut(file)
+                let untimed = answer.comments.count - timed.count
+                self.note.stringValue = "\(result.placed) markers on “\(result.projectName)”" + (untimed > 0 ? " (\(untimed) untimed left out)" : "")
+            } catch {
+                PanelLog.write("markers failed: \(error)")
+                let text = "\(error)".contains("signed-out") ? "Sign in to Adborth in this panel first" : error.localizedDescription
+                self.note.stringValue = text
+            }
+        }
+    }
+
+    /// Opens the finished file in the Final Cut this panel belongs to.
+    private func handToFinalCut(_ file: URL) {
+        let running = ["com.apple.FinalCut", "com.apple.FinalCutApp", "com.apple.FinalCutTrial"]
+            .compactMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }.first
+        guard let app = running?.bundleURL else { PanelLog.write("Final Cut not found running"); NSWorkspace.shared.open(file); return }
+        NSWorkspace.shared.open([file], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            PanelLog.write("handed to \(app.lastPathComponent): \(error.map { "\($0)" } ?? "ok")")
+        }
     }
 
     @objc private func followChanged() {
