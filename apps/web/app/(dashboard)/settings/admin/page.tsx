@@ -14,10 +14,19 @@ import { Avatar } from "@/components/shared/avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRouter } from "next/navigation";
-import type { User, UserStatus } from "@/types";
+import type { OrganisationRole, User, UserStatus } from "@/types";
+import { SelectMenu } from "@/components/ui/select-menu";
 import { InstanceSettingsTab } from "@/components/settings/instance-settings-tab";
 import { BrandingTab } from "@/components/settings/branding-tab";
 import { StorageTab } from "@/components/settings/storage-tab";
+
+/** What each organisation role means, as the picker in the People list shows it. */
+const ORG_ROLE_OPTIONS: { value: OrganisationRole | "none"; label: string; detail: string }[] = [
+  { value: "none", label: "Not in the organisation", detail: "Sees only the projects they are added to" },
+  { value: "member", label: "User", detail: "Every project: upload, comment and share" },
+  { value: "manager", label: "Content manager", detail: "Every project: full control, and creates projects" },
+  { value: "admin", label: "Administrator", detail: "As a content manager, and manages people and settings" },
+];
 
 // The API requires a name and the dialog doesn't ask for one, so each invitee
 // is listed under the local part of their address until they accept the invite
@@ -328,13 +337,12 @@ export default function AdminPage() {
     }
   };
 
-  const handleToggleAdmin = async (
-    userId: string,
-    isCurrentlyAdmin: boolean,
-  ) => {
+  // "none" stands for no organisation role: the person keeps only the
+  // projects they were added to by name.
+  const handleSetOrgRole = async (userId: string, role: OrganisationRole | "none") => {
     try {
-      await api.patch(`/admin/users/${userId}/role`, {
-        is_admin: !isCurrentlyAdmin,
+      await api.patch(`/admin/users/${userId}/org-role`, {
+        org_role: role === "none" ? null : role,
       });
       mutate("/admin/users");
     } catch (err: unknown) {
@@ -456,13 +464,21 @@ export default function AdminPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {u.is_superadmin ? (
+                      {u.is_client ? (
+                        <span className="text-xs text-text-tertiary">Client</span>
+                      ) : u.id === user?.id ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                           <Shield className="h-3 w-3" />
-                          Admin
+                          Administrator
                         </span>
                       ) : (
-                        <span className="text-xs text-text-tertiary">User</span>
+                        <SelectMenu<OrganisationRole | "none">
+                          label={`Organisation role for ${u.name}`}
+                          size="sm"
+                          value={u.org_role ?? "none"}
+                          onChange={(role) => handleSetOrgRole(u.id, role)}
+                          options={ORG_ROLE_OPTIONS}
+                        />
                       )}
                     </td>
                     <td className="px-4 py-3">{userStatusBadge(u.status)}</td>
@@ -515,17 +531,6 @@ export default function AdminPage() {
                               )}
                             </Button>
                           )}
-                        {u.id !== user?.id && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              handleToggleAdmin(u.id, u.is_superadmin)
-                            }
-                          >
-                            {u.is_superadmin ? "Remove Admin" : "Make Admin"}
-                          </Button>
-                        )}
                         {/* A pending row with a verified email is an invitee who
                             signed in with a code while a code still let them in: a
                             working account, so it is deactivated, not revoked. */}

@@ -232,6 +232,9 @@ export default function ProjectsPage() {
   usePageTitle("Projects");
   const router = useRouter();
   const { user } = useAuthStore();
+  // Content managers and administrators start projects; the API refuses anyone else.
+  const canCreate =
+    !!user && (user.is_superadmin || user.org_role === "manager" || user.org_role === "admin");
   const {
     layout: viewMode,
     cardSize,
@@ -351,12 +354,14 @@ export default function ProjectsPage() {
               if (!open) resetForm();
             }}
           >
-            <Dialog.Trigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4" />
-                New Project
-              </Button>
-            </Dialog.Trigger>
+            {canCreate && (
+              <Dialog.Trigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4" />
+                  New Project
+                </Button>
+              </Dialog.Trigger>
+            )}
 
             <Dialog.Portal>
               <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
@@ -459,11 +464,16 @@ export default function ProjectsPage() {
           <EmptyState
             icon={FolderOpen}
             title="No projects yet"
-            description="Create your first project to start organizing assets."
-            action={{
-              label: "New Project",
-              onClick: () => setDialogOpen(true),
-            }}
+            description={
+              canCreate
+                ? "Create your first project to start organizing assets."
+                : "Projects appear here once you are added to one or given a role in the organisation."
+            }
+            action={
+              canCreate
+                ? { label: "New Project", onClick: () => setDialogOpen(true) }
+                : undefined
+            }
           />
         </div>
       ) : (
@@ -477,7 +487,7 @@ export default function ProjectsPage() {
             showCardInfo={showCardInfo}
             emptyMessage="You haven't created any projects yet."
             onNewProject={() => setDialogOpen(true)}
-            showNewButton
+            showNewButton={canCreate}
             userId={user?.id}
           />
           {sharedProjects.length > 0 && (

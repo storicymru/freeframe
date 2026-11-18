@@ -41,6 +41,9 @@ export type ViewerLayout = "grid" | "reel";
 
 export type ApprovalStatus = "approved" | "rejected" | "pending";
 
+/** user = every project as an editor; manager and admin = as an owner. */
+export type OrganisationRole = "member" | "manager" | "admin";
+
 // ─── Core Entities ────────────────────────────────────────────────────────────
 
 export interface User {
@@ -53,6 +56,8 @@ export interface User {
   is_superadmin: boolean;
   /** A client-portal account: it uses /portal and nothing else. */
   is_client?: boolean;
+  /** Their role in the organisation; with one they see every project. */
+  org_role?: OrganisationRole | null;
   email_verified: boolean;
   invite_token?: string | null;
   preferences: Record<string, unknown>;
