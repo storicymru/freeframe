@@ -95,12 +95,66 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     fetchNotifications()
   }, [fetchNotifications])
 
+  // What the account button opens: the same three items from the sidebar's
+  // foot and from the phone bar.
+  const accountMenu = (side: 'top' | 'bottom', align: 'start' | 'end') => (
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                side={side}
+                align={align}
+                sideOffset={8}
+                className="z-50 min-w-[180px] rounded-lg border border-border bg-bg-elevated p-1 shadow-xl animate-slide-up"
+                onCloseAutoFocus={onCloseAutoFocus}
+              >
+                <DropdownMenu.Item asChild>
+                  <Link
+                    href="/settings/profile"
+                    onClick={closeUploadsPanel}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-text-secondary hover:bg-bg-hover hover:text-text-primary focus:outline-none"
+                  >
+                    <User className="h-4 w-4" />
+                    Profile
+                  </Link>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item asChild>
+                  <Link
+                    href={isSuperAdmin ? '/settings/admin' : '/settings/appearance'}
+                    onClick={closeUploadsPanel}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-text-secondary hover:bg-bg-hover hover:text-text-primary focus:outline-none"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 h-px bg-border" />
+                <DropdownMenu.Item
+                  onSelect={requestLogout}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-status-error hover:bg-status-error/10 focus:outline-none"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+  )
+
+  // The viewer fills a phone's screen and has its own way back, and its comment
+  // box sits where the bar would be, so the bar keeps off it.
+  const inViewer = /\/projects\/[^/]+\/assets\/[^/]+/.test(pathname)
+  const onProjects = pathname.startsWith('/projects')
+  const barButton = (active: boolean) =>
+    cn(
+      'relative flex h-12 w-12 items-center justify-center rounded-full transition-colors',
+      active ? 'bg-pill text-pill-text' : 'text-text-primary hover:bg-bg-hover',
+    )
+
   return (
     <>
       <aside
         className={cn(
           // Cylch's sidebar: no panel of its own, it sits on the page's shell colour.
-          'fixed left-0 top-0 z-30 flex h-screen flex-col',
+          // From `md` up. On a phone the bar along the bottom takes its place.
+          'fixed left-0 top-0 z-30 flex h-screen flex-col max-md:hidden',
           'bg-bg-primary transition-[width] duration-200 overflow-hidden',
           collapsed ? 'w-[52px]' : 'w-[220px]',
         )}
@@ -277,44 +331,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </button>
             </DropdownMenu.Trigger>
 
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content
-                side="top"
-                align={collapsed ? 'start' : 'end'}
-                sideOffset={8}
-                className="z-50 min-w-[180px] rounded-lg border border-border bg-bg-elevated p-1 shadow-xl animate-slide-up"
-                onCloseAutoFocus={onCloseAutoFocus}
-              >
-                <DropdownMenu.Item asChild>
-                  <Link
-                    href="/settings/profile"
-                    onClick={closeUploadsPanel}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-text-secondary hover:bg-bg-hover hover:text-text-primary focus:outline-none"
-                  >
-                    <User className="h-4 w-4" />
-                    Profile
-                  </Link>
-                </DropdownMenu.Item>
-                <DropdownMenu.Item asChild>
-                  <Link
-                    href={isSuperAdmin ? '/settings/admin' : '/settings/appearance'}
-                    onClick={closeUploadsPanel}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-text-secondary hover:bg-bg-hover hover:text-text-primary focus:outline-none"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Settings
-                  </Link>
-                </DropdownMenu.Item>
-                <DropdownMenu.Separator className="my-1 h-px bg-border" />
-                <DropdownMenu.Item
-                  onSelect={requestLogout}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-status-error hover:bg-status-error/10 focus:outline-none"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Log out
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
+            {accountMenu('top', collapsed ? 'start' : 'end')}
           </DropdownMenu.Root>
 
           {/* Collapse toggle */}
@@ -336,6 +353,58 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </button>
         </div>
       </aside>
+
+      {/* On a phone: Cylch's sidebar as a floating bar along the bottom, with
+          the same black pill for where you are. */}
+      {!inViewer && (
+        <nav
+          aria-label="Main"
+          className="md:hidden fixed left-4 right-4 bottom-safe [--ff-bottom:1rem] z-30 flex h-16 items-center justify-between rounded-full bg-bg-secondary p-2 shadow-[0_1px_2px_rgba(0,0,0,.05),0_8px_24px_rgba(0,0,0,.07)]"
+        >
+          <Link
+            href="/projects"
+            onClick={() => { setNotifOpen(false); closeUploadsPanel() }}
+            aria-current={onProjects && !notifOpen && !panelOpen ? 'page' : undefined}
+            className={cn(
+              'flex h-12 items-center gap-2 rounded-full px-[18px] text-sm font-medium transition-colors',
+              onProjects && !notifOpen && !panelOpen ? 'bg-pill text-pill-text' : 'text-text-primary hover:bg-bg-hover',
+            )}
+          >
+            <Layers className="h-[18px] w-[18px]" />
+            Projects
+          </Link>
+          <button
+            type="button"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} new` : 'Notifications'}
+            onClick={() => { closeUploadsPanel(); setNotifOpen((v) => !v) }}
+            className={barButton(notifOpen)}
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute right-[11px] top-[10px] h-[9px] w-[9px] rounded-full bg-accent" />
+            )}
+          </button>
+          <button
+            type="button"
+            aria-label={activeUploads > 0 ? `Uploads, ${activeUploads} running` : 'Uploads'}
+            onClick={() => { setNotifOpen(false); togglePanel() }}
+            className={barButton(panelOpen)}
+          >
+            <Upload className="h-5 w-5" />
+            {activeUploads > 0 && (
+              <span className="absolute right-[11px] top-[10px] h-[9px] w-[9px] rounded-full bg-accent" />
+            )}
+          </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button type="button" aria-label={user?.name ?? 'Account'} className={barButton(false)}>
+                <Avatar src={user?.avatar_url} name={user?.name} color={user?.avatar_color} size="sm" />
+              </button>
+            </DropdownMenu.Trigger>
+            {accountMenu('top', 'end')}
+          </DropdownMenu.Root>
+        </nav>
+      )}
 
       {/* Notification Drawer */}
       <NotificationDrawer

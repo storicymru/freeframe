@@ -821,7 +821,8 @@ export function UploadsPanel({
           for the same reason as the panel's offset below. */}
       <div
         className={cn(
-          'fixed top-0 right-0 bottom-0 left-[52px] z-40',
+          // On a phone there is no rail to leave uncovered.
+          'fixed top-0 right-0 bottom-0 left-[52px] max-md:left-0 z-40',
           !railCollapsed && 'md:left-[220px]',
         )}
         onClick={() => setPanelOpen(false)}
@@ -850,8 +851,9 @@ export function UploadsPanel({
         // unreachable. The rail only expands by hand and does not persist, so
         // below `md` the panel stays where a collapsed rail puts it.
         className={cn(
+          // On a phone: from the screen's edge, and no wider than the screen.
           'fixed left-safe top-0 z-50 h-dvh w-[380px]',
-          '[--ff-left:52px]',
+          '[--ff-left:52px] max-md:[--ff-left:0px] max-md:w-full',
           !railCollapsed && 'md:[--ff-left:220px]',
           'border-r border-border bg-bg-secondary shadow-2xl flex flex-col pb-safe animate-in slide-in-from-left-4 duration-150',
         )}

@@ -79,13 +79,15 @@ export default function DashboardLayout({
       {/* Main content area */}
       <main
         className={cn(
-          "flex flex-1 flex-col overflow-hidden transition-[margin] duration-200 ease-spring",
+          // No rail on a phone: the page takes the full width, and the scrolling
+          // area below leaves room for the bar along the bottom.
+          "flex flex-1 flex-col overflow-hidden transition-[margin] duration-200 ease-spring max-md:!ml-0",
           sidebarCollapsed ? "ml-[52px]" : "ml-[220px]",
         )}
       >
         {!isAssetViewer && <Header onSearchOpen={() => setCommandOpen(true)} />}
 
-        <div className="relative flex-1 overflow-y-auto">{children}</div>
+        <div className={cn("relative flex-1 overflow-y-auto", !isAssetViewer && "max-md:pb-24")}>{children}</div>
       </main>
 
       {/* Attribution floats over the content rather than living in the sidebar,
@@ -105,7 +107,7 @@ export default function DashboardLayout({
           this one back would restore the send-button collision on exactly the
           widths where the composer is hardest to hit. */}
       {!isAssetViewer && (
-        <PoweredByBadge className="fixed bottom-safe right-safe [--ff-bottom:1rem] [--ff-right:1rem] z-20 rounded-full border border-border bg-bg-elevated/90 px-3 py-1.5 shadow-lg backdrop-blur-sm" />
+        <PoweredByBadge className="fixed bottom-safe right-safe [--ff-bottom:1rem] max-md:[--ff-bottom:6rem] [--ff-right:1rem] z-20 rounded-full border border-border bg-bg-elevated/90 px-3 py-1.5 shadow-lg backdrop-blur-sm" />
       )}
 
       <UploadsPanel railCollapsed={sidebarCollapsed} />

@@ -4,6 +4,10 @@ import * as React from 'react'
 import { usePathname } from 'next/navigation'
 import { Search, ChevronRight, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import Link from 'next/link'
+import { useBranding } from '@/components/shared/branding-provider'
+import { useResolvedTheme } from '@/hooks/use-resolved-theme'
+import { resolveBrandingLogo } from '@/lib/branding-logo'
+import { ThemedDefaultLogo } from '@/components/shared/themed-default-logo'
 import { cn } from '@/lib/utils'
 import { useViewStore } from '@/stores/view-store'
 import { useBreadcrumbStore } from '@/stores/breadcrumb-store'
@@ -56,13 +60,26 @@ export function Header({ onSearchOpen }: HeaderProps) {
   const pathname = usePathname()
   const { rightPanelOpen, toggleRightPanel } = useViewStore()
   const { labels, extraCrumbs } = useBreadcrumbStore()
+  const { orgName, orgLogoDark, orgLogoLight } = useBranding()
+  const theme = useResolvedTheme()
+  const customLogo = resolveBrandingLogo({ theme, darkUrl: orgLogoDark, lightUrl: orgLogoLight })
   const urlCrumbs = buildBreadcrumbs(pathname, labels)
   const breadcrumbs = [...urlCrumbs, ...extraCrumbs.map((c) => ({ label: c.label, href: c.href ?? '' }))]
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 bg-bg-primary/90 backdrop-blur-sm px-4">
+      {/* On a phone the rail, and the mark at its head, are gone: it sits here. */}
+      <Link href="/projects" aria-label={orgName || 'Home'} className="md:hidden shrink-0">
+        {customLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={customLogo} alt="" className="h-9 w-9 object-contain" />
+        ) : (
+          <ThemedDefaultLogo variant="icon" alt="" className="h-7 w-7 object-contain" />
+        )}
+      </Link>
+
       {/* Breadcrumbs */}
-      <nav className="flex items-center gap-1 text-[13px]">
+      <nav className="flex min-w-0 flex-1 items-center gap-1 text-[13px]">
         {breadcrumbs.map((crumb, index) => {
           const isLast = index === breadcrumbs.length - 1
           return (

@@ -123,7 +123,7 @@ export function NotificationDrawer({ open, onClose, railCollapsed }: Notificatio
           expanded offset is gated at `md` so a phone keeps the drawer on screen. */}
       <div
         className={cn(
-          'fixed top-0 right-0 bottom-0 left-[52px] z-40',
+          'fixed top-0 right-0 bottom-0 left-[52px] max-md:left-0 z-40',
           !railCollapsed && 'md:left-[220px]',
         )}
         onClick={onClose}
@@ -132,7 +132,7 @@ export function NotificationDrawer({ open, onClose, railCollapsed }: Notificatio
       {/* Drawer */}
       <div
         className={cn(
-          'fixed left-safe [--ff-left:52px] top-0 z-50 h-full w-[380px] border-r border-border bg-bg-primary shadow-2xl flex flex-col pb-safe animate-in slide-in-from-left-2 duration-150',
+          'fixed left-safe [--ff-left:52px] max-md:[--ff-left:0px] top-0 z-50 h-full w-[380px] max-md:w-full border-r border-border bg-bg-primary shadow-2xl flex flex-col pb-safe animate-in slide-in-from-left-2 duration-150',
           !railCollapsed && 'md:[--ff-left:220px]',
         )}
       >
