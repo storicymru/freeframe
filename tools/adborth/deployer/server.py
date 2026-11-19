@@ -131,7 +131,8 @@ def recent_runs(limit: int = 8) -> list | None:
                "sh", "-c", f'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "{query}"']
     try:
         done = subprocess.run(command, capture_output=True, text=True, timeout=30, cwd=HOME)
-        return json.loads(done.stdout.strip().splitlines()[-1])
+        # All of it: json_agg puts each row on its own line.
+        return json.loads(done.stdout)
     except Exception:
         return None
 
