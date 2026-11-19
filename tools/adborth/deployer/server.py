@@ -112,6 +112,30 @@ def busy_versions() -> int | None:
         return None
 
 
+def recent_runs(limit: int = 8) -> list | None:
+    """The newest rows of the timing log, as seconds per stage, or None if
+    that could not be asked. A fixed, read-only query: nothing from the request
+    reaches it but a small number."""
+    limit = max(1, min(int(limit), 30))
+    secs = lambda a, b: f"round(extract(epoch from ({b} - {a})))"  # noqa: E731
+    query = (
+        "select coalesce(json_agg(t), '[]') from (select asset_name, "
+        "round(file_size_bytes / 1e9, 2) as gb, round(duration_seconds) as video_seconds, height, "
+        "to_char(upload_started_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI') as uploaded_utc, "
+        f"{secs('upload_started_at', 'upload_completed_at')} as upload_s, "
+        f"{secs('processing_started_at', 'preview_ready_at')} as watchable_s, "
+        f"{secs('processing_started_at', 'processing_completed_at')} as processing_s, outcome "
+        f"from processing_runs order by created_at desc limit {limit}) t"
+    )
+    command = ["docker", "compose", "-f", COMPOSE, "exec", "-T", "postgres",
+               "sh", "-c", f'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "{query}"']
+    try:
+        done = subprocess.run(command, capture_output=True, text=True, timeout=30, cwd=HOME)
+        return json.loads(done.stdout.strip().splitlines()[-1])
+    except Exception:
+        return None
+
+
 def deploy(services: list[str]) -> None:
     compose = ["docker", "compose", "-f", COMPOSE]
     ok = _run("build", compose + ["build"] + services, BUILD_TIMEOUT)
@@ -179,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError
         except (ValueError, json.JSONDecodeError):
             return self._answer(400, {"error": "bad request"})
-        if self.path not in ("/deploy", "/status", "/restart"):
+        if self.path not in ("/deploy", "/status", "/restart", "/timings"):
             return self._answer(404, {"error": "not found"})
         refusal = check_request("POST", self.path, body, self.headers.get("X-Signature", ""), payload)
         if refusal:
@@ -187,6 +211,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._answer(401, {"error": "not authorised"})
         if self.path == "/status":
             return self._answer(200, status())
+        if self.path == "/timings":
+            return self._answer(200, {"runs": recent_runs(payload.get("limit", 8))})
         if self.path == "/restart":
             # Picks up a new server.py: Docker starts the container again.
             if _state["state"] == "running":

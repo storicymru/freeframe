@@ -4,6 +4,7 @@
 #   tools/adborth/deploy.sh            build what changed, restart, wait, check
 #   tools/adborth/deploy.sh --status   what the helper is doing or last did
 #   tools/adborth/deploy.sh --update-helper   send the helper its own new code
+#   tools/adborth/deploy.sh --timings  how long recent uploads and processing took
 #   tools/adborth/deploy.sh --force    deploy even while a video is processing
 #   tools/adborth/deploy.sh --all      rebuild both images whatever changed
 #
@@ -45,10 +46,27 @@ PY
 
 MODE=deploy FORCE=false ALL=false
 for arg in "$@"; do case "$arg" in
-  --status) MODE=status ;; --update-helper) MODE=update-helper ;; --force) FORCE=true ;; --all) ALL=true ;;
+  --status) MODE=status ;; --timings) MODE=timings ;; --update-helper) MODE=update-helper ;; --force) FORCE=true ;; --all) ALL=true ;;
   *) echo "Unknown option $arg"; exit 2 ;;
 esac; done
 if [ "$MODE" = status ]; then show_status; exit; fi
+if [ "$MODE" = timings ]; then
+  OUT="$(call /timings "{$(stamp)}")"
+  python3 - "${OUT%$'\n'*}" <<'PY'
+import json, sys
+runs = json.loads(sys.argv[1]).get("runs")
+if runs is None:
+    sys.exit("The helper could not read the timing log.")
+t = lambda s: "-" if s is None else f"{int(s) // 60}m{int(s) % 60:02d}s"
+for r in runs:
+    line = (f"{r['uploaded_utc']}  {str(r['asset_name'])[:28]:28}  {r['gb']} GB  {r['height'] or '?'}p  "
+            f"upload {t(r['upload_s'])}  watchable {t(r['watchable_s'])}  processed {t(r['processing_s'])}  {r['outcome'] or 'running'}")
+    if r.get("reprocess_utc"):
+        line += f"\n    reprocessed {r['reprocess_utc']} ({r['reprocess_qualities']}): {t(r['reprocess_s'])}  {r['reprocess_outcome'] or 'running'}"
+    print(line)
+PY
+  exit
+fi
 if [ "$MODE" = update-helper ]; then
   # The helper's own code changed: copy it over and have it start again.
   cp tools/adborth/deployer/server.py "$SHARE/deployer/server.py"
