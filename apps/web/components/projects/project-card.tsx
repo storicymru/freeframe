@@ -18,6 +18,21 @@ interface ProjectCardProps {
   className?: string
 }
 
+/**
+ * The band the name sits on under a logo: the client's colour, with the text
+ * dark or white according to which can be read on it. Without a usable colour,
+ * the app's own dark pill.
+ */
+export function nameBand(colour?: string | null): { background: string; text: string } {
+  if (!colour || !/^#[0-9a-f]{6}$/i.test(colour)) return { background: '#111111', text: '#ffffff' }
+  const [r, g, b] = [1, 3, 5].map((at) => {
+    const v = parseInt(colour.slice(at, at + 2), 16) / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  return { background: colour, text: luminance > 0.4 ? '#111111' : '#ffffff' }
+}
+
 export function ProjectCard({
   project,
   showRole,
@@ -26,6 +41,9 @@ export function ProjectCard({
   className,
 }: ProjectCardProps) {
   const assetCount = project.asset_count ?? 0
+  // With a logo and no cover picture, the logo fills the card.
+  const logoCard = !!project.brand_logo_url && !project.poster_url
+  const band = nameBand(project.brand_primary_color)
   const { items: menuItems } = useProjectMenu(project, { isOwner })
 
   return (
@@ -38,30 +56,49 @@ export function ProjectCard({
         >
           {/* Square poster area */}
           <div className="relative aspect-square w-full overflow-hidden">
-            <ProjectPoster project={project} />
+            {logoCard ? (
+              <>
+                {/* The client's logo is the card: on white, as large as it will
+                    go, with the name on a band of their colour underneath. */}
+                <div data-logo-card={project.id} className="absolute inset-x-0 top-0 bottom-14 flex items-center justify-center bg-white p-[12%]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={project.brand_logo_url ?? ''} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" />
+                </div>
+                <div
+                  className="absolute inset-x-0 bottom-0 flex h-14 flex-col justify-center px-3"
+                  style={{ background: band.background, color: band.text }}
+                >
+                  <p className="text-sm font-semibold line-clamp-1">{project.name}</p>
+                  {project.description && (
+                    <p className="text-[11px] line-clamp-1 opacity-80">{project.description}</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <ProjectPoster project={project} />
 
-            {/* Bottom gradient overlay for text */}
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+                {/* Bottom gradient overlay for text */}
+                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
 
-            {/* Project name overlay */}
-            <div className="absolute inset-x-0 bottom-0 p-3">
-              <p className="text-sm font-semibold text-white line-clamp-2 drop-shadow-sm">
-                {project.name}
-              </p>
-              {project.description && (
-                <p className="text-[11px] text-white/70 line-clamp-1 mt-0.5">
-                  {project.description}
-                </p>
-              )}
-            </div>
+                {/* Project name overlay */}
+                <div className="absolute inset-x-0 bottom-0 p-3">
+                  <p className="text-sm font-semibold text-white line-clamp-2 drop-shadow-sm">
+                    {project.name}
+                  </p>
+                  {project.description && (
+                    <p className="text-[11px] text-white/70 line-clamp-1 mt-0.5">
+                      {project.description}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* The client's logo, where the project has one */}
-            {/* Large and in the middle, as Cylch shows it, so the card is the
-                client's rather than a field of colour with a mark in the corner. */}
-            <ProjectLogoTile
-              project={project}
-              className="absolute left-1/2 top-[42%] aspect-[16/9] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-3xl p-[6%] shadow-sm"
-            />
+            {/* A project with its own cover picture keeps it, with the logo as a
+                small tile in the corner. */}
+            {!logoCard && <ProjectLogoTile project={project} className="absolute left-3 top-3 h-14 w-14 shadow-sm" />}
 
             {/* Public/role badges */}
             <div className={cn('absolute top-2.5 flex items-center gap-1.5', project.brand_logo_url ? 'right-2.5' : 'left-2.5')}>

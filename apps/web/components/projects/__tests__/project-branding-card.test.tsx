@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
 import { ProjectLogoTile, ProjectPoster } from '../project-poster'
+import { nameBand } from '../project-card'
 
 /**
  * A project's branding (set in its settings, or sent across by Cylch) shows on
@@ -55,4 +56,18 @@ describe('ProjectPoster', () => {
       expect((container.firstElementChild as HTMLElement).className).toContain('bg-gradient-to-br')
     },
   )
+})
+
+describe('nameBand', () => {
+  it('puts dark text on a light colour and white on a dark one, so the name can be read', () => {
+    expect(nameBand('#f8e92c')).toEqual({ background: '#f8e92c', text: '#111111' })
+    expect(nameBand('#04a89b')).toEqual({ background: '#04a89b', text: '#ffffff' })
+    expect(nameBand('#1b365d')).toEqual({ background: '#1b365d', text: '#ffffff' })
+  })
+
+  it('falls back to the dark pill for no colour or anything that is not a plain hex colour', () => {
+    for (const bad of [null, undefined, 'red', 'url(x)', '#12']) {
+      expect(nameBand(bad)).toEqual({ background: '#111111', text: '#ffffff' })
+    }
+  })
 })
