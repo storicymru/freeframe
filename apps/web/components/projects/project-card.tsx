@@ -56,7 +56,12 @@ export function ProjectCard({
             </div>
 
             {/* The client's logo, where the project has one */}
-            <ProjectLogoTile project={project} className="absolute left-3 top-3 h-14 w-14 shadow-sm" />
+            {/* Large and in the middle, as Cylch shows it, so the card is the
+                client's rather than a field of colour with a mark in the corner. */}
+            <ProjectLogoTile
+              project={project}
+              className="absolute left-1/2 top-[42%] aspect-[16/9] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-3xl p-[6%] shadow-sm"
+            />
 
             {/* Public/role badges */}
             <div className={cn('absolute top-2.5 flex items-center gap-1.5', project.brand_logo_url ? 'right-2.5' : 'left-2.5')}>
