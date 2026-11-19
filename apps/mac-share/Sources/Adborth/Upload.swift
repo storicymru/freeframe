@@ -43,29 +43,39 @@ private struct PartSender: Sendable {
     let size: Int64
     let progress: @Sendable (Int, Int64) -> Void
 
-    static let session: URLSession = {
+    /// How many parts may be on their way at once, at most.
+    static let lanes = 6
+
+    /// One session a lane, so each part travels on a connection of its own.
+    /// The storage server speaks HTTP/2, and a single session puts every part
+    /// on one connection: four parts "at once" then share one connection's
+    /// speed, which over the internet is about half of what the line can send.
+    /// Separate sessions cannot share a connection.
+    static let sessions: [URLSession] = (0..<lanes).map { _ in
         let c = URLSessionConfiguration.ephemeral
         c.timeoutIntervalForRequest = 120
         c.timeoutIntervalForResource = 6 * 3600
-        c.httpMaximumConnectionsPerHost = 6
+        c.httpMaximumConnectionsPerHost = 1
         return URLSession(configuration: c)
-    }()
+    }
 
     var partCount: Int { Int((size + Int64(upload.chunkSizeBytes) - 1) / Int64(upload.chunkSizeBytes)) }
-    /// Parts in flight at once: four, or fewer when parts are large, so the app
-    /// never holds more than about 256 MB of the file in memory.
-    var parallel: Int { max(1, min(4, (256 * 1024 * 1024) / upload.chunkSizeBytes)) }
+    /// Parts in flight at once: six, or fewer when parts are large, so the app
+    /// never holds more than about 384 MB of the file in memory.
+    var parallel: Int { max(1, min(Self.lanes, (384 * 1024 * 1024) / upload.chunkSizeBytes)) }
 
     func sendAll() async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Int.self) { group in
             var next = 1, running = 0
+            var free = Array(0..<parallel)
             while next <= partCount || running > 0 {
-                while running < parallel && next <= partCount {
+                while let lane = free.popLast(), next <= partCount {
                     let number = next
-                    group.addTask { try await send(part: number) }
+                    group.addTask { try await send(part: number, lane: lane); return lane }
                     next += 1; running += 1
                 }
-                try await group.next()
+                // A part finished: its lane is free for the next one.
+                if let lane = try await group.next() { free.append(lane) }
                 running -= 1
             }
         }
@@ -83,7 +93,7 @@ private struct PartSender: Sendable {
         return data
     }
 
-    private func send(part: Int) async throws {
+    private func send(part: Int, lane: Int) async throws {
         let data = try read(part: part)
         var lastError: Error = APIError(status: 0, message: "The upload could not be sent.")
         for attempt in 0..<6 {
@@ -100,7 +110,7 @@ private struct PartSender: Sendable {
                 guard let url = URL(string: link.presignedUrl) else { throw APIError(status: 0, message: "The server sent an upload address that could not be read.") }
                 var request = URLRequest(url: url)
                 request.httpMethod = "PUT"
-                let (_, response) = try await Self.session.upload(for: request, from: data, delegate: PartProgress { sent in progress(part, sent) })
+                let (_, response) = try await Self.sessions[lane].upload(for: request, from: data, delegate: PartProgress { sent in progress(part, sent) })
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 if (200..<300).contains(status) {
                     progress(part, Int64(data.count))
