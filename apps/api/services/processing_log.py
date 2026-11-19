@@ -85,10 +85,33 @@ def record_upload_completed(version_id) -> None:
 def record_processing_started(version_id) -> None:
     """A worker picked the version up. Counted once per attempt."""
     def change(db, run):
+        if reprocessing(run):
+            if run.reprocess_started_at is None:
+                run.reprocess_started_at = datetime.now(timezone.utc)
+            return
         if run.processing_started_at is None:
             run.processing_started_at = datetime.now(timezone.utc)
         run.attempts = (run.attempts or 0) + 1
     _write(version_id, change)
+
+
+def reprocessing(run: ProcessingRun) -> bool:
+    """A reprocess was asked for and has not ended. While it is, the worker's
+    start and finish belong to it and not to the original upload's record."""
+    return run.reprocess_requested_at is not None and run.reprocess_completed_at is None
+
+
+def record_reprocess_requested(db, version_id: uuid.UUID, qualities: str) -> None:
+    """Open a reprocess on the version's row, in the caller's transaction: the
+    request and its record commit together, before the worker is told."""
+    run = _ensure_run(db, version_id)
+    if run is None:
+        return
+    run.reprocess_requested_at = datetime.now(timezone.utc)
+    run.reprocess_started_at = None
+    run.reprocess_completed_at = None
+    run.reprocess_outcome = None
+    run.reprocess_qualities = (qualities or "")[:64] or None
 
 
 def record_preview_ready(version_id, kind: str) -> None:
@@ -104,6 +127,12 @@ def record_processing_finished(version_id, ok: bool, error: Optional[str] = None
     """Processing ended, well or badly. Picks up what the transcode learned
     about the file (length, frame size) while it is there."""
     def change(db, run):
+        if reprocessing(run):
+            run.reprocess_completed_at = datetime.now(timezone.utc)
+            run.reprocess_outcome = "ready" if ok else "failed"
+            if not ok:
+                run.error = (error or None) and error[:2000]
+            return
         run.processing_completed_at = datetime.now(timezone.utc)
         run.outcome = "ready" if ok else "failed"
         run.error = (error or None) and error[:2000]
@@ -149,6 +178,13 @@ def describe(run: ProcessingRun) -> dict:
         "outcome": run.outcome,
         "attempts": run.attempts,
         "error": run.error,
+        # The latest reprocess of the stored master, if there has been one.
+        "reprocess_requested_at": run.reprocess_requested_at,
+        "reprocess_started_at": run.reprocess_started_at,
+        "reprocess_completed_at": run.reprocess_completed_at,
+        "reprocess_outcome": run.reprocess_outcome,
+        "reprocess_qualities": run.reprocess_qualities,
+        "reprocess_seconds": _seconds(run.reprocess_started_at, run.reprocess_completed_at),
         "preview_ready_at": run.preview_ready_at,
         "preview_kind": run.preview_kind,
         # From the worker picking it up to the video being watchable.

@@ -1,4 +1,4 @@
-"""Managing the versions of a video: tidy, delete, release and stack.
+"""Managing the versions of a video: tidy, delete, release, stack and reprocess.
 
 A video (an asset) is a stack of versions. Every round of review adds one, and
 each carries its own upload and its own transcode, so a finished job can hold
@@ -20,7 +20,7 @@ was approved has to keep pointing at something.
 Every function flushes and leaves the commit to its caller.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func
@@ -34,7 +34,10 @@ from ..models.processing_run import ProcessingRun
 from ..models.share import ShareLink
 from ..models.sign_off import SignOff
 from ..models.user import User
+from ..config import settings
 from .activity_service import log_activity
+from .processing_log import record_reprocess_requested, reprocessing
+from .s3_service import head_object_size
 from .sign_off import active_sign_off
 from .versions import UNVIEWABLE_STATUSES, next_version_number
 
@@ -355,3 +358,55 @@ def stack_assets(db: Session, target: Asset, source: Asset, actor: User) -> dict
         "moved_versions": len(moving),
         "version_numbers": numbers,
     }
+
+
+#: How long an unfinished reprocess blocks asking for another. Past the
+#: transcoder's own ceiling, so a worker that died does not block it for good.
+REPROCESS_WINDOW = timedelta(hours=12)
+
+
+def reprocess_version(db: Session, asset: Asset, version_id: uuid.UUID, actor: User) -> AssetVersion:
+    """Mark a version to have its playback copies made again from the stored
+    master, with the quality list the instance has now.
+
+    For a video uploaded before the list changed: after 4K is switched on, the
+    videos already there have no 4K copy until this runs. Nothing is uploaded.
+    The version stays watchable on the copies it has while the new ones are
+    made, and keeps them if the new run fails.
+
+    Records the request and returns the version; the caller commits and then
+    dispatches the transcode, so the worker never starts on an uncommitted row.
+    """
+    version = _live_version(db, asset, version_id)
+    if _value(asset.asset_type) != "video":
+        raise StackError("Only a video has playback copies to make again.", 422)
+    if version.processing_status != ProcessingStatus.ready:
+        raise StackError("This version is still uploading or processing, or its processing failed.")
+    media = db.query(MediaFile).filter(MediaFile.version_id == version.id).first()
+    if media is None or not media.s3_key_raw:
+        raise StackError("This version has no original file stored to process again.")
+    run = db.query(ProcessingRun).filter(ProcessingRun.version_id == version.id).first()
+    if (
+        run is not None and reprocessing(run)
+        and run.reprocess_requested_at > datetime.now(timezone.utc) - REPROCESS_WINDOW
+    ):
+        raise StackError("This version is already being processed again.")
+    try:
+        stored = head_object_size(media.s3_key_raw)
+    except Exception:  # noqa: BLE001 - storage not answering is not "no file"
+        raise StackError("Could not reach storage to check the original file. Try again.", 503)
+    if stored is None:
+        raise StackError("The original file for this version is no longer in storage.")
+
+    record_reprocess_requested(db, version.id, settings.transcoder_qualities)
+    log_activity(
+        db, "version_reprocess", user_id=actor.id, project_id=asset.project_id, asset_id=asset.id,
+        payload={"version": str(version.id), "number": version.version_number,
+                 "qualities": settings.transcoder_qualities},
+    )
+    db.flush()
+    return version
+
+
+def _value(enum_or_str) -> str:
+    return getattr(enum_or_str, "value", enum_or_str)

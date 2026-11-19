@@ -91,6 +91,28 @@ describe('the versions dialog', () => {
     expect(onReleased).toHaveBeenCalledWith('new1', expect.any(String))
   })
 
+  it('processes a version again from its stored file after asking', async () => {
+    const dialog = await open()
+    api.post.mockResolvedValue({ reprocessing: true })
+    const row = within(dialog).getAllByRole('listitem')[0]
+    fireEvent.click(within(row).getByRole('button', { name: 'Reprocess' }))
+    expect(api.post).not.toHaveBeenCalled()
+    expect(within(row).getByText(/Process version 3 again from its original file/)).toBeInTheDocument()
+    fireEvent.click(within(row).getAllByRole('button', { name: 'Reprocess' })[1])
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/assets/a1/versions/v3/reprocess', {}))
+    expect(await within(dialog).findByText(/Version 3 is being processed again/)).toBeInTheDocument()
+  })
+
+  it('offers reprocessing only for a version that is ready', async () => {
+    const dialog = await open({
+      ...plan,
+      versions: [plan.versions[0], { ...plan.versions[2], processing_status: 'processing' }],
+    })
+    const [newest, oldest] = within(dialog).getAllByRole('button', { name: 'Reprocess' })
+    expect(newest).toBeDisabled()
+    expect(oldest).toBeEnabled()
+  })
+
   it('offers only other videos of the same kind to stack, and stacks after asking', async () => {
     const dialog = await open()
     const picker = within(dialog).getByRole('combobox', { name: 'Video to stack' })

@@ -50,4 +50,13 @@ class ProcessingRun(Base):
     outcome: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Processing the stored master again, asked for by a person (for instance
+    # after the quality list gained a size). Kept apart from the four moments
+    # above, so the record of the original upload is not written over. Only the
+    # latest reprocess is kept. `reprocess_qualities` is the list it ran with.
+    reprocess_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reprocess_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reprocess_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reprocess_outcome: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    reprocess_qualities: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

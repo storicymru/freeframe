@@ -40,6 +40,7 @@ type Pending =
   | { kind: 'tidy' }
   | { kind: 'delete'; version: TidyPlanVersion }
   | { kind: 'release'; version: TidyPlanVersion }
+  | { kind: 'reprocess'; version: TidyPlanVersion }
   | { kind: 'stack'; source: Asset }
 
 function messageOf(error: unknown, fallback: string): string {
@@ -136,6 +137,9 @@ export function ManageVersionsDialog({
       } else if (action.kind === 'delete') {
         await api.delete(`/assets/${assetId}/versions/${action.version.version_id}`)
         setNotice({ text: `Version ${action.version.version_number} moved to the trash.` })
+      } else if (action.kind === 'reprocess') {
+        await api.post(`/assets/${assetId}/versions/${action.version.version_id}/reprocess`, {})
+        setNotice({ text: `Version ${action.version.version_number} is being processed again. It stays watchable while that runs.` })
       } else if (action.kind === 'release') {
         const made = await api.post<{ asset_id: string; name: string }>(
           `/assets/${assetId}/versions/${action.version.version_id}/release`, {},
@@ -218,6 +222,14 @@ export function ManageVersionsDialog({
                         {version.created_at ? ` · ${exactTime(version.created_at)}` : ''}
                       </p>
                     </div>
+                    {assetType === 'video' && (
+                      <button type="button" disabled={busy || version.processing_status !== 'ready'}
+                        onClick={() => setPending({ kind: 'reprocess', version })}
+                        title="Make the playback copies again from the original file, with the current quality settings"
+                        className={cn(small, 'border border-border text-text-secondary hover:bg-bg-hover hover:text-text-primary')}>
+                        Reprocess
+                      </button>
+                    )}
                     <button type="button" disabled={busy || only || inFlight}
                       onClick={() => setPending({ kind: 'release', version })}
                       title={only ? 'This is the only version' : 'Make this version a separate video'}
@@ -234,7 +246,9 @@ export function ManageVersionsDialog({
                   {asking && (
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bg-secondary px-3 py-2">
                       <p className="text-xs text-text-secondary">
-                        {asking.kind === 'delete'
+                        {asking.kind === 'reprocess'
+                          ? `Process version ${version.version_number} again from its original file? Nothing is uploaded, and it stays watchable meanwhile. A long video can take a while.`
+                          : asking.kind === 'delete'
                           ? `Move version ${version.version_number} to the trash? It frees ${formatBytes(version.bytes)} once the trash is emptied.`
                           : `Make version ${version.version_number} a separate video in this project? Its comments go with it.`}
                       </p>
@@ -243,7 +257,7 @@ export function ManageVersionsDialog({
                         <button type="button" disabled={busy} onClick={() => run(asking)}
                           className={cn(small, 'bg-accent text-text-inverse hover:bg-accent-hover inline-flex items-center gap-1.5')}>
                           {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-                          {asking.kind === 'delete' ? 'Delete version' : 'Release it'}
+                          {asking.kind === 'reprocess' ? 'Reprocess' : asking.kind === 'delete' ? 'Delete version' : 'Release it'}
                         </button>
                       </span>
                     </div>

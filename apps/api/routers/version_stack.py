@@ -108,6 +108,29 @@ def delete_asset_version(
     return result
 
 
+@router.post("/assets/{asset_id}/versions/{version_id}/reprocess", status_code=202)
+def reprocess_asset_version(
+    asset_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Make a version's playback copies again from its stored master, with the
+    quality list the instance has now. Nothing is uploaded."""
+    asset = _asset(db, asset_id)
+    _may_manage(db, asset.project_id, current_user)
+    try:
+        version = version_stack.reprocess_version(db, asset, version_id, current_user)
+    except version_stack.StackError as error:
+        raise _refuse(error)
+    db.commit()
+    # After the commit: the worker reads the request from the database.
+    from ..tasks.celery_app import send_task_safe
+    from ..tasks.transcode_tasks import process_asset
+    send_task_safe(process_asset, str(asset.id), str(version.id))
+    return {"version_id": version.id, "version_number": version.version_number, "reprocessing": True}
+
+
 @router.post("/assets/{asset_id}/versions/{version_id}/release")
 def release_asset_version(
     asset_id: uuid.UUID,
