@@ -315,7 +315,8 @@ function TrashList({
       })),
       ...data.versions.map((v) => ({
         key: `v-${v.version_id}`,
-        what: `${v.asset_name} · version ${v.version_number}`,
+        // An upload that never arrived holds no version number (below 1).
+        what: v.version_number > 0 ? `${v.asset_name} · version ${v.version_number}` : `${v.asset_name} · unfinished upload`,
         where: v.project_name,
         daysLeft: v.days_left,
         blocked: v.blocked_by_parent,

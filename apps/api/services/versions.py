@@ -8,6 +8,7 @@ client happened to take.
 """
 import uuid
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models.asset import AssetVersion, ProcessingStatus
@@ -22,27 +23,44 @@ UNVIEWABLE_STATUSES = (ProcessingStatus.uploading, ProcessingStatus.failed)
 
 
 def next_version_number(db: Session, asset_id: uuid.UUID) -> int:
-    """The next free version number for an asset.
+    """The next version number for an asset: one past the highest it holds.
 
-    Counts **every** version the asset has ever had, including soft-deleted ones.
-    `uq_asset_versions_asset_version` spans `(asset_id, version_number)` and has
-    no view of `deleted_at`, so a soft-deleted version still owns its number;
-    skipping it here would return a number the constraint is still holding and
-    the insert would fail with an `IntegrityError` on every retry, permanently.
+    Counts every version that holds a number, **including the ones in the
+    trash**. `uq_asset_versions_asset_version` spans `(asset_id,
+    version_number)` and has no view of `deleted_at`, and a version in the trash
+    can be restored, so its number is still its own: skipping it here would
+    hand out a number the constraint is holding and the insert would fail with
+    an `IntegrityError` on every retry.
 
-    That is not a rare state. `_reap_stale_uploads` soft-deletes a version whose
-    transfer stopped, so an asset with a single reclaimed upload would refuse
-    every new version from then on.
+    An upload that never arrived is the exception. It was cancelled, or its
+    transfer stopped and the reaper took it; nobody ever saw it and it can never
+    be restored (`restore_rules`), so `release_version_number` takes its number
+    away and the next upload gets it. Without that a cancelled upload leaves a
+    hole in the stack: v3, then v5.
 
-    Numbers are therefore monotonic and not reused, so they can skip: after a
-    reclaimed v2, the next upload is v3. Nothing derives an index or a position
-    from the number, and both the comment export and share URLs label by it, so
-    a number meaning one thing for the life of an asset is the property worth
-    having. It holds for as long as the row does: `_purge_soft_deleted` hard
-    deletes a soft-deleted version after `SOFT_DELETE_RETENTION_DAYS`, and the
-    number becomes free again then.
+    A released row holds a number below 1, which is why only numbers above 0
+    are counted here.
     """
-    last_version = db.query(AssetVersion).filter(
+    highest = db.query(func.max(AssetVersion.version_number)).filter(
         AssetVersion.asset_id == asset_id,
-    ).order_by(AssetVersion.version_number.desc()).first()
-    return (last_version.version_number + 1) if last_version else 1
+        AssetVersion.version_number > 0,
+    ).scalar()
+    return (highest or 0) + 1
+
+
+def release_version_number(db: Session, version: AssetVersion) -> None:
+    """Give back the number of an upload that never arrived.
+
+    Called as the upload is disposed of. The row stays, soft-deleted, until the
+    retention sweep removes it, and the constraint still wants it to hold
+    something unique on its asset, so it takes the next number below zero. No
+    listing shows a number below 1 as a version.
+    """
+    lowest = db.query(func.min(AssetVersion.version_number)).filter(
+        AssetVersion.asset_id == version.asset_id,
+        AssetVersion.version_number < 0,
+    ).scalar()
+    version.version_number = (lowest or 0) - 1
+    # The session does not autoflush, and the next release on this asset has to
+    # see this one.
+    db.flush()

@@ -23,6 +23,7 @@ from ..models.instance_branding import InstanceBranding
 from ..models.user import User
 from ..models.activity import Mention, ActivityLog, Notification
 from ..services.owned_keys import is_project_logo_key
+from ..services.versions import release_version_number
 from ..services.s3_service import (
     list_stale_multipart_uploads, abort_multipart_upload, delete_object, delete_prefix, list_keys,
     head_object_size, UPLOAD_GONE_CODES,
@@ -369,6 +370,9 @@ def _dispose_version_files(db: Session, v: AssetVersion) -> None:
         if mf.s3_key_thumbnail:
             _safe(delete_object, mf.s3_key_thumbnail)
     v.deleted_at = datetime.now(timezone.utc)
+    # Nobody saw this version and it cannot be restored, so it does not keep its
+    # place in the stack: the next upload takes the number.
+    release_version_number(db, v)
 
 
 def _holds_a_master(db: Session, v: AssetVersion) -> bool:

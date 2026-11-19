@@ -1117,7 +1117,10 @@ def purge_from_trash(db: Session, targets: dict, actor: User) -> dict:
             "versions": [
                 {
                     "id": str(v["id"]),
-                    "name": f"{v['asset_name']} version {v['version_number']}",
+                    "name": (
+                        f"{v['asset_name']} version {v['version_number']}"
+                        if v["version_number"] > 0 else f"{v['asset_name']} unfinished upload"
+                    ),
                 }
                 for v in cascading["versions"]
             ],
