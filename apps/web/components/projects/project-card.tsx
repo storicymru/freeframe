@@ -2,12 +2,23 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { MoreHorizontal, ImagePlus, Globe, Lock } from 'lucide-react'
+import { MoreHorizontal, Globe } from 'lucide-react'
 import { cn, formatRelativeTime, formatBytes } from '@/lib/utils'
 import { ContextMenuArea, DotsMenu } from '@/components/shared/item-menu'
 import { ProjectLogoTile, ProjectPoster } from './project-poster'
 import { useProjectMenu } from './menus/project-menu'
+import { getBandColourForProject } from '@/lib/gradient-utils'
 import type { Project } from '@/types'
+
+/**
+ * Up to two letters for a project with no picture: the first letters of its
+ * first two words ("Prawf / Test" is PT), or the first letter of a one-word
+ * name. Nothing when the name has no letters or digits.
+ */
+export function projectInitials(name: string): string {
+  const words = name.match(/[\p{L}\p{N}]+/gu) ?? []
+  return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+}
 
 interface ProjectCardProps {
   project: Project
@@ -43,7 +54,10 @@ export function ProjectCard({
   const assetCount = project.asset_count ?? 0
   // With a logo and no cover picture, the logo fills the card.
   const logoCard = !!project.brand_logo_url && !project.poster_url
-  const band = nameBand(project.brand_primary_color)
+  // The band takes the client's colour where there is one, else the deep
+  // shade of the project's own gradient (or plain dark under a cover picture).
+  const brand = /^#[0-9a-f]{6}$/i.test(project.brand_primary_color ?? '') ? project.brand_primary_color : null
+  const band = nameBand(brand ?? (project.poster_url ? null : getBandColourForProject(project.id)))
   const { items: menuItems } = useProjectMenu(project, { isOwner })
 
   return (
@@ -54,51 +68,49 @@ export function ProjectCard({
           href={`/projects/${project.id}`}
           className="block rounded-xl overflow-hidden bg-bg-secondary border border-border hover:border-accent/40 transition-all duration-200 hover:shadow-lg hover:shadow-black/10"
         >
-          {/* Square poster area */}
+          {/* Square card: the picture on top, the name on a band underneath.
+              Every project gets the same shape, so the grid reads as one. */}
           <div className="relative aspect-square w-full overflow-hidden">
-            {logoCard ? (
-              <>
-                {/* The client's logo is the card: on white, as large as it will
-                    go, with the name on a band of their colour underneath. */}
-                <div data-logo-card={project.id} className="absolute inset-x-0 top-0 bottom-14 flex items-center justify-center bg-white p-[12%]">
+            <div className="absolute inset-x-0 top-0 bottom-16 overflow-hidden">
+              {logoCard ? (
+                // The client's logo is the picture: on white, as large as it will go.
+                <div data-logo-card={project.id} className="flex h-full w-full items-center justify-center bg-white p-[12%]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={project.brand_logo_url ?? ''} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" />
                 </div>
-                <div
-                  className="absolute inset-x-0 bottom-0 flex h-14 flex-col justify-center px-3"
-                  style={{ background: band.background, color: band.text }}
-                >
-                  <p className="text-sm font-semibold line-clamp-1">{project.name}</p>
-                  {project.description && (
-                    <p className="text-[11px] line-clamp-1 opacity-80">{project.description}</p>
+              ) : (
+                <>
+                  <ProjectPoster project={project} />
+                  {/* No picture and no logo: the project's initials, large, so
+                      a colour card still says whose it is at a glance. */}
+                  {!project.poster_url && (
+                    <span
+                      data-project-initials={project.id}
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center text-[clamp(2rem,9vw,4rem)] font-bold tracking-tight opacity-90"
+                      style={{ color: band.text }}
+                    >
+                      {projectInitials(project.name)}
+                    </span>
                   )}
-                </div>
-              </>
-            ) : (
-              <>
-                <ProjectPoster project={project} />
-
-                {/* Bottom gradient overlay for text */}
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-
-                {/* Project name overlay */}
-                <div className="absolute inset-x-0 bottom-0 p-3">
-                  <p className="text-sm font-semibold text-white line-clamp-2 drop-shadow-sm">
-                    {project.name}
-                  </p>
-                  {project.description && (
-                    <p className="text-[11px] text-white/70 line-clamp-1 mt-0.5">
-                      {project.description}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* The client's logo, where the project has one */}
-            {/* A project with its own cover picture keeps it, with the logo as a
-                small tile in the corner. */}
-            {!logoCard && <ProjectLogoTile project={project} className="absolute left-3 top-3 h-14 w-14 shadow-sm" />}
+                  {/* A project with its own cover picture keeps it, with the
+                      logo as a small tile in the corner. */}
+                  <ProjectLogoTile project={project} className="absolute left-3 top-3 h-14 w-14 shadow-sm" />
+                </>
+              )}
+            </div>
+            <div
+              data-name-band={project.id}
+              className="absolute inset-x-0 bottom-0 flex h-16 flex-col justify-center px-3 shadow-[inset_0_1px_0_rgba(0,0,0,0.08)]"
+              style={{ background: band.background, color: band.text }}
+            >
+              <p className={cn('text-[15px] font-semibold leading-tight', project.description ? 'line-clamp-1' : 'line-clamp-2')}>
+                {project.name}
+              </p>
+              {project.description && (
+                <p className="mt-0.5 text-[11px] line-clamp-1 opacity-80">{project.description}</p>
+              )}
+            </div>
 
             {/* Public/role badges */}
             <div className={cn('absolute top-2.5 flex items-center gap-1.5', project.brand_logo_url ? 'right-2.5' : 'left-2.5')}>
