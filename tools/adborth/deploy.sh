@@ -8,6 +8,9 @@
 #   tools/adborth/deploy.sh --force    deploy even while a video is processing
 #   tools/adborth/deploy.sh --all      rebuild both images whatever changed
 #
+# It also runs on the NAS itself, from the claude-remote gate's "update adborth":
+# ADBORTH_SHARE=/share/Container/freeframe and ADBORTH_KEY_FILE=<the helper's key file>.
+#
 # It copies only the files that changed since the last deploy to the NAS, gives
 # the images a new tag (keeping the old compose file as the way back), asks the
 # helper on the NAS to build and restart, and waits for the site to answer.
@@ -20,8 +23,15 @@ SITE="${ADBORTH_SITE:-https://adborth.stori.cymru}"
 
 call() {  # call <path> <json body>: a signed POST; prints the answer, then the HTTP code
   local path="$1" body="$2" key sig
-  key="$(security find-generic-password -s adborth-deploy-key -a adborth -w 2>/dev/null)" \
-    || { echo "No deploy key in the Keychain. Run tools/adborth/make-deploy-key.sh once." >&2; exit 1; }
+  # On a Mac the key is in the Keychain. Run on the NAS itself (the gate's
+  # "update adborth"), ADBORTH_KEY_FILE names the helper's own key file.
+  if [ -n "${ADBORTH_KEY_FILE:-}" ]; then
+    key="$(cat "$ADBORTH_KEY_FILE" 2>/dev/null)"
+    [ -n "$key" ] || { echo "No deploy key in $ADBORTH_KEY_FILE." >&2; exit 1; }
+  else
+    key="$(security find-generic-password -s adborth-deploy-key -a adborth -w 2>/dev/null)" \
+      || { echo "No deploy key in the Keychain. Run tools/adborth/make-deploy-key.sh once." >&2; exit 1; }
+  fi
   sig="$(printf 'POST\n%s\n%s' "$path" "$body" | openssl dgst -sha256 -hmac "$key" -r | cut -d' ' -f1)"
   unset key
   curl -sS -m 30 -X POST -H "X-Signature: $sig" -H 'Content-Type: application/json' \
@@ -115,7 +125,10 @@ for svc in "${SERVICES[@]}"; do
   CUR="$(grep -m1 -oE "stori/freeframe-$svc:[^ ]+" "$SHARE/docker-compose.yml" | cut -d: -f2)"
   BASE="${CUR%.*}"; N="${CUR##*.}"; NEW="$BASE.$((N + 1))"
   [ "${BACKED_UP:-}" = yes ] || { cp "$SHARE/docker-compose.yml" "$SHARE/docker-compose.before-$HEAD_SHA.yml"; BACKED_UP=yes; }
-  sed -i '' "s|stori/freeframe-$svc:$CUR|stori/freeframe-$svc:$NEW|g" "$SHARE/docker-compose.yml" "$SHARE/docker-compose.build.yml"
+  # Written through a copy, not `sed -i`, whose spelling differs between macOS and Linux.
+  for f in "$SHARE/docker-compose.yml" "$SHARE/docker-compose.build.yml"; do
+    sed "s|stori/freeframe-$svc:$CUR|stori/freeframe-$svc:$NEW|g" "$f" > "$f.new" && cat "$f.new" > "$f"; rm -f "$f.new"
+  done
   echo "  $svc: $CUR -> $NEW"
 done
 
