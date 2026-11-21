@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { ProjectLogoTile, ProjectPoster } from '../project-poster'
-import { nameBand } from '../project-card'
+import { nameBand, projectInitials, ProjectCard } from '../project-card'
+import { getBandColourForProject } from '@/lib/gradient-utils'
+import type { Project } from '@/types'
+
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), delete: vi.fn(), patch: vi.fn(), post: vi.fn() } }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }))
 
 /**
  * A project's branding (set in its settings, or sent across by Cylch) shows on
@@ -69,5 +74,51 @@ describe('nameBand', () => {
     for (const bad of [null, undefined, 'red', 'url(x)', '#12']) {
       expect(nameBand(bad)).toEqual({ background: '#111111', text: '#ffffff' })
     }
+  })
+})
+
+describe('projectInitials', () => {
+  it('takes the first letters of the first two words, or one for a one-word name', () => {
+    expect(projectInitials('Prawf / Test')).toBe('PT')
+    expect(projectInitials('Nightmode')).toBe('N')
+    expect(projectInitials('plant dewi | Ysgol')).toBe('PD')
+    expect(projectInitials('Ŵyl Ifan')).toBe('ŴI')
+    expect(projectInitials('— / —')).toBe('')
+  })
+})
+
+describe('ProjectCard name band', () => {
+  const card: Project = {
+    id: 'p1',
+    name: 'Nightmode',
+    description: null,
+    created_by: 'u1',
+    project_type: 'personal',
+    created_at: '2026-01-01T00:00:00Z',
+    deleted_at: null,
+  }
+  const bandOf = (c: HTMLElement) => c.querySelector('[data-name-band="p1"]') as HTMLElement
+  const rgb = (hex: string) => `rgb(${[1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(', ')})`
+
+  it('puts a project with no picture on the deep shade of its gradient, with its initials', () => {
+    const { container } = render(<ProjectCard project={card} />)
+    expect(bandOf(container).style.background).toBe(rgb(getBandColourForProject('p1')))
+    expect(bandOf(container)).toHaveTextContent('Nightmode')
+    expect(container.querySelector('[data-project-initials="p1"]')).toHaveTextContent('N')
+  })
+
+  it('uses the client\'s colour when the project has one, logo or not', () => {
+    const { container } = render(<ProjectCard project={{ ...card, brand_primary_color: '#04a89b' }} />)
+    expect(bandOf(container).style.background).toBe('rgb(4, 168, 155)')
+  })
+
+  it('shows no initials over a logo or a cover picture', () => {
+    const withLogo = render(<ProjectCard project={{ ...card, brand_logo_url: 'https://files.test/logo.png' }} />)
+    expect(withLogo.container.querySelector('[data-logo-card="p1"]')).not.toBeNull()
+    expect(withLogo.container.querySelector('[data-project-initials]')).toBeNull()
+    withLogo.unmount()
+    const withCover = render(<ProjectCard project={{ ...card, poster_url: 'https://files.test/cover.jpg' }} />)
+    expect(withCover.container.querySelector('[data-project-initials]')).toBeNull()
+    expect(bandOf(withCover.container).style.background).toBe('rgb(17, 17, 17)')
   })
 })
