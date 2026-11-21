@@ -124,7 +124,9 @@ printf '%s\n%s\n' "$HEAD_SHA" "$(git branch --show-current) of github.com/storic
 for svc in "${SERVICES[@]}"; do
   CUR="$(grep -m1 -oE "stori/freeframe-$svc:[^ ]+" "$SHARE/docker-compose.yml" | cut -d: -f2)"
   BASE="${CUR%.*}"; N="${CUR##*.}"; NEW="$BASE.$((N + 1))"
-  [ "${BACKED_UP:-}" = yes ] || { cp "$SHARE/docker-compose.yml" "$SHARE/docker-compose.before-$HEAD_SHA.yml"; BACKED_UP=yes; }
+  # Kept from the first try only: after a failed build the compose file names
+  # images that were never made, and saving that over the way back would lose it.
+  [ "${BACKED_UP:-}" = yes ] || { [ -e "$SHARE/docker-compose.before-$HEAD_SHA.yml" ] || cp "$SHARE/docker-compose.yml" "$SHARE/docker-compose.before-$HEAD_SHA.yml"; BACKED_UP=yes; }
   # Written through a copy, not `sed -i`, whose spelling differs between macOS and Linux.
   for f in "$SHARE/docker-compose.yml" "$SHARE/docker-compose.build.yml"; do
     sed "s|stori/freeframe-$svc:$CUR|stori/freeframe-$svc:$NEW|g" "$f" > "$f.new" && cat "$f.new" > "$f"; rm -f "$f.new"
